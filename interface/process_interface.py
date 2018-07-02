@@ -26,18 +26,18 @@ from core.util.interfaces import InterfaceMetaclass
 
 class ProcessInterface(metaclass=InterfaceMetaclass):
     """ A very simple interface to measure a single value.
-        Used for PID controll.
+        Used for PID control.
     """
 
     _modtype = 'ProcessInterface'
     _modclass = 'interface'
 
     @abc.abstractmethod
-    def getProcessValue(self):
+    def get_process_value(self):
         """ Return a measured value """
         pass
 
     @abc.abstractmethod
-    def getProcessUnit(self):
+    def get_process_unit(self):
         """ Return the unit that hte value is measured in as a tuple of ('abreviation', 'full unit name') """
         pass
