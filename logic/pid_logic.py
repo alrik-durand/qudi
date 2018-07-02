@@ -20,7 +20,8 @@ Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
 top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
 """
 
-import numpy as np
+import copy
+# import numpy as np
 
 from core.module import Connector, ConfigOption, StatusVar
 from core.util.mutex import Mutex
@@ -29,218 +30,158 @@ from qtpy import QtCore
 
 
 class PIDLogic(GenericLogic):
-    """
-    Control a process via software PID.
+    """ Monitor or control a process
+
+    This module takes data_field list as input and tries to log every entry.
+    To get or set properties, this module tries to call the get_<field> and set_<field> function of the hardware.
+
+    To access data from the GUI, only one function is needed get_data by specifying a field.
+
+    Data can be any type, eventually tuple for multiple sensors value
+
     """
     _modclass = 'pidlogic'
     _modtype = 'logic'
 
-    ## declare connectors
-    controller = Connector(interface='PIDControllerInterface')
+    hardware = Connector(interface='PIDControllerInterface')
     savelogic = Connector(interface='SaveLogic')
-
-    # status vars
-    bufferLength = StatusVar('bufferlength', 1000)
-    timestep = StatusVar(default=100)
+    _data_field = ConfigOption('data_field', tuple('process_value'))
+    _permitted_data_field = ('enabled', 'setpoint', 'process_value', 'control_value', 'kp', 'kd', 'ki')
+    
+    _timestep = ConfigOption('timestep', 1.)  # update time in seconds
+    _loop_enabled = False
 
     # signals
-    sigUpdateDisplay = QtCore.Signal()
+    sigUpdate = QtCore.Signal()
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
-        self.log.debug('The following configuration was found.')
 
-        #number of lines in the matrix plot
-        self.NumberOfSecondsLog = 100
         self.threadlock = Mutex()
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
         """
-        self._controller = self.controller()
+        self._hardware = self.hardware()
         self._save_logic = self.savelogic()
 
-        self.history = np.zeros([3, self.bufferLength])
-        self.savingState = False
-        self.enabled = False
+        # Check config file
+        for field in self._data_field:
+            if field not in self._permitted_data_field:
+                self.log.error('{} field is not present in any interface'.format(field))
+                return
+
+        self._data = {}
+        for key in self._data_field:
+            self._data[key] = []
+
+        self._loop_enabled = True
         self.timer = QtCore.QTimer()
         self.timer.setSingleShot(True)
-        self.timer.setInterval(self.timestep)
-        self.timer.timeout.connect(self.loop)
+        self.timer.setInterval(self._timestep)
+        self.timer.timeout.connect(self._loop)
+        self.timer.start(self._timestep)
 
     def on_deactivate(self):
         """ Perform required deactivation. """
+        self._loop_enabled = False
         pass
 
-    def getBufferLength(self):
-        """ Get the current data buffer length.
+    def _loop(self):
+        """ Execute step in the data acquisition loop: save one of each control and process values
         """
-        return self.bufferLength
 
-    def startLoop(self):
-        """ Start the data recording loop.
-        """
-        self.enabled = True
-        self.timer.start(self.timestep)
+        if not self._loop_enabled:  # let's stop here
+            return  # prevent trying to read hardware after deactivation
 
-    def stopLoop(self):
-        """ Stop the data recording loop.
-        """
-        self.enabled = False
+        for key in self._data_field:
+            value = getattr(self._hardware, 'get_{}'.format(key))()
+            self._data['key'].append(value)
 
-    def loop(self):
-        """ Execute step in the data recording loop: save one of each control and process values
-        """
-        self.history = np.roll(self.history, -1, axis=1)
-        self.history[0, -1] = self._controller.get_process_value()
-        self.history[1, -1] = self._controller.get_control_value()
-        self.history[2, -1] = self._controller.get_setpoint()
         self.sigUpdateDisplay.emit()
-        if self.enabled:
-            self.timer.start(self.timestep)
+        self.timer.start(self._timestep)
 
-    def getSavingState(self):
-        """ Return whether we are saving data
+    def get_data(self, key, start=0):
+        """ Get an array of data entry for the given key from a start index
 
-            @return bool: whether we are saving data right now
+        @param str key: key of the requested data
+        @param int start: start point of the array required
+
+        @ return list(any): raw data for given field
+
+        Main function to access data history.
+        The array is deepcopied to prevent modification by user module.
+        As a consequence, real time logging could take lots of resource. That is why it's better
+        to access only the last unread data in by keeping track of entry index.
         """
-        return self.savingState
+        if key not in self._data_field:
+            self.log.error('Data field {} is not acquired. Please check logic configuration parameters.'.format(key))
+        length = len(self._data[key])
+        if length > 0 and start >= length:
+            self.log.error('Start index is out of the array')
+        else:
+            return copy.deepcopy(self._data[key][start:])
 
-    def startSaving(self):
-        """ Start saving data.
+    def get_timestep(self):
+        """ Return current timestep between data entries
 
-            Function does nothing right now.
+        """
+        return self._timestep
+
+    def get_fields(self):
+        """ Return enabled features
+
+        """
+        return self._data_field
+
+    def save_data(self, path=None, filename=None, extension='.dat', start=0, end=None, step=1):
+        """ Save all acquired data to file
+
+        @param str path: path of where to save data
+        @param str filename: filename to save
+        @param str extension: extension for file
+        @param int start: start index of the entry to save in the file
+        @param int end: stop index of the entry to save in the file
+        @param int step: step index of the entry to save in the file
+
+        If a lot of data is acquired, parameters give a way to reduce disk usage
         """
         pass
 
-    def saveData(self):
-        """ Stop saving data and write data to file.
+    def set(self, key, value):
+        """ Set a value on the hardware for a given key
 
-            Function does nothing right now.
+        @param key: key of the value to set
+        @param value: value to set
+
+        @return any: the value returned by the hardware function
         """
-        pass
+        # Check that hardware module has setter function
+        setter = 'set_{}'.format(key)
+        if not hasattr(self._hardware, setter):
+            self.log('Setting {} is not possible, hardware module has no function {}'.format(key, setter))
+            return
+        # If a get_X_limits exist in hardware, let's use it and warning if out of range
+        limits = self.limits(key)
+        if limits:  # True if not None
+            mini, maxi = limits
+            if not mini <= value <= maxi:
+                self.log.warning('{} value {} is out of range [{}, {}]'.format(key, value, mini, maxi))
+        # Now set it
+        return getattr(self._hardware, 'set_'.format(key))(value)
 
-    def setBufferLength(self, newBufferLength):
-        """ Change buffer length to new value.
+    def limits(self, key):
+        """ Get the limit tuple from the hardware for a given field
 
-            @param int newBufferLength: new buffer length
+        @param key: key of the field
+
+        @return tuple(any): limit returned by the hardware module
+
+        This function can be used to check if limit are available for a given field
         """
-        self.bufferLength = newBufferLength
-        self.history = np.zeros([3, self.bufferLength])
+        limit_getter = 'get_{}_limits'.format(key)
+        if hasattr(self._hardware, limit_getter):
+            return getattr(self._hardware(limit_getter))
+        else:
+            return None
 
-    def get_kp(self):
-        """ Return the proportional constant.
-
-            @return float: proportional constant of PID controller
-        """
-        return self._controller.get_kp()
-
-    def set_kp(self, kp):
-        """ Set the proportional constant of the PID controller.
-
-            @prarm float kp: proportional constant of PID controller
-        """
-        return self._controller.set_kp(kp)
-
-    def get_ki(self):
-        """ Get the integration constant of the PID controller
-
-            @return float: integration constant of the PID controller
-        """
-        return self._controller.get_ki()
-
-    def set_ki(self, ki):
-        """ Set the integration constant of the PID controller.
-
-            @param float ki: integration constant of the PID controller
-        """
-        return self._controller.set_ki(ki)
-
-    def get_kd(self):
-        """ Get the derivative constant of the PID controller
-
-            @return float: the derivative constant of the PID controller
-        """
-        return self._controller.get_kd()
-
-    def set_kd(self, kd):
-        """ Set the derivative constant of the PID controller
-
-            @param float kd: the derivative constant of the PID controller
-        """
-        return self._controller.set_kd(kd)
-
-    def get_setpoint(self):
-        """ Get the current setpoint of the PID controller.
-
-            @return float: current set point of the PID controller
-        """
-        return self.history[2, -1]
-
-    def set_setpoint(self, setpoint):
-        """ Set the current setpoint of the PID controller.
-
-            @param float setpoint: new set point of the PID controller
-        """
-        self._controller.set_setpoint(setpoint)
-
-    def get_manual_value(self):
-        """ Return the control value for manual mode.
-
-            @return float: control value for manual mode
-        """
-        return self._controller.get_manual_value()
-
-    def set_manual_value(self, manualvalue):
-        """ Set the control value for manual mode.
-
-            @param float manualvalue: control value for manual mode of controller
-        """
-        return self._controller.set_manual_value(manualvalue)
-
-    def get_enabled(self):
-        """ See if the PID controller is controlling a process.
-
-            @return bool: whether the PID controller is preparing to or conreolling a process
-        """
-        return self.enabled
-
-    def set_enabled(self, enabled):
-        """ Set the state of the PID controller.
-
-            @param bool enabled: desired state of PID controller
-        """
-        if enabled and not self.enabled:
-            self.startLoop()
-        if not enabled and self.enabled:
-            self.stopLoop()
-
-    def get_control_limits(self):
-        """ Get the minimum and maximum value of the control actuator.
-
-            @return list(float): (minimum, maximum) values of the control actuator
-        """
-        return self._controller.get_control_limits()
-
-    def set_control_limits(self, limits):
-        """ Set the minimum and maximum value of the control actuator.
-
-            @param list(float) limits: (minimum, maximum) values of the control actuator
-
-            This function does nothing, control limits are handled by the control module
-        """
-        return self._controller.set_control_limits(limits)
-
-    def get_pv(self):
-        """ Get current process input value.
-
-            @return float: current process input value
-        """
-        return self.history[0, -1]
-
-    def get_cv(self):
-        """ Get current control output value.
-
-            @return float: control output value
-        """
-        return self.history[1, -1]
