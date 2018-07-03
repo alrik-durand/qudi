@@ -60,6 +60,9 @@ class PIDGui(GUIBase):
 
     _fields = []
     _interval = ConfigOption('interval', 0)  # 0 = show all
+    _left_axis_text = ConfigOption('left_axis_text', 'Process value')
+    _left_axis_unit = ConfigOption('left_axis_unit', '')
+    _legend = ConfigOption('legend', [''])
     _last_index = 0
     _data = {}
     _link = None
@@ -72,6 +75,7 @@ class PIDGui(GUIBase):
 
         """
         self. logic = self.pidlogic()
+        self._logic = self.pidlogic()
         self._fields = self._logic.get_fields()
         for field in self._fields:
             self._data[field] = []
@@ -80,7 +84,7 @@ class PIDGui(GUIBase):
         self._init_window()
         self._init_axis()
 
-              
+        self._logic.sigUpdate.connect(self.update_data)
 
 
         self._link = {
@@ -122,6 +126,16 @@ class PIDGui(GUIBase):
         right_axis = None
         bottom_axis = {'text': 'Time', 'units': 's'}
 
+        self._pw = self._mw.process_PlotWidget
+
+        self._pw.setLabel('left', self._left_axis_text, unit=self._left_axis_unit)
+        self._pw.setLabel('bottom', 'Time', units='s')
+
+        self._curves = []
+
+        for curve in self._legend:
+            self._curves.append(
+                pg.PlotDataItem(pen=pg.mkPen(palette.c1), symbol=None))
 
     def _update_view_from_model(self):
         """ Update the view data from the logic data
@@ -151,6 +165,12 @@ class PIDGui(GUIBase):
         """ Deactivate the module properly.
         """
         self._mw.close()
+
+    def update_data(self):
+        """ Function called when the logic emits an update signal """
+        new = self.get_data()
+        if new:
+            self._update_view_from_model()
 
     def get_data(self):
         """ Get new data from the logic
