@@ -26,7 +26,7 @@ import abc
 from core.util.interfaces import InterfaceMetaclass
 
 
-class ControllerInterface(ProcessInterface, SetpointInterface, metaclass=InterfaceMetaclass):
+class ControllerInterface(metaclass=InterfaceMetaclass):
     _modtype = 'ControllerInterface'
     _modclass = 'interface'
 
