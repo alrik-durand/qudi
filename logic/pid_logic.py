@@ -21,6 +21,7 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 """
 
 import copy
+import time
 # import numpy as np
 
 from core.module import Connector, ConfigOption, StatusVar
@@ -45,7 +46,13 @@ class PIDLogic(GenericLogic):
 
     hardware = Connector(interface='PIDControllerInterface')
     savelogic = Connector(interface='SaveLogic')
-    _data_field = ConfigOption('data_field', tuple('process_value'))
+
+    _active_fields = ConfigOption('active_fields')  # list of active fields on the hardware
+    # This field are accessible via the logic but their value is not logged
+
+    _logged_field = ConfigOption('logged_field', None) # list of fields to log
+    # If None, all active fields will be monitored
+
     _permitted_data_field = ('enabled', 'setpoint', 'process_value', 'control_value', 'kp', 'kd', 'ki')
     
     _timestep = ConfigOption('timestep', 1.)  # update time in seconds
@@ -66,26 +73,37 @@ class PIDLogic(GenericLogic):
         self._save_logic = self.savelogic()
 
         # Check config file
+        if self._logged_field is None:
+            self._logged_field = self._active_fields
+
         for field in self._data_field:
-            if field not in self._permitted_data_field:
+            if field not in self._active_fields + self._logged_field:
                 self.log.error('{} field is not present in any interface'.format(field))
                 return
 
         self._data = {}
-        for key in self._data_field:
+        for key in self._logged_field:
             self._data[key] = []
 
-        self._loop_enabled = True
         self.timer = QtCore.QTimer()
         self.timer.setSingleShot(True)
-        self.timer.setInterval(self._timestep)
         self.timer.timeout.connect(self._loop)
-        self.timer.start(self._timestep)
+        self.start_loop()
 
     def on_deactivate(self):
         """ Perform required deactivation. """
+        self.stop_loop()
+
+    def start_loop(self):
+        """ Start the data recording loop.
+        """
+        self._loop_enabled = True
+        self.timer.start(self._timestep)
+
+    def stop_loop(self):
+        """ Stop the data recording loop.
+        """
         self._loop_enabled = False
-        pass
 
     def _loop(self):
         """ Execute step in the data acquisition loop: save one of each control and process values
@@ -94,45 +112,41 @@ class PIDLogic(GenericLogic):
         if not self._loop_enabled:  # let's stop here
             return  # prevent trying to read hardware after deactivation
 
-        for key in self._data_field:
-            value = getattr(self._hardware, 'get_{}'.format(key))()
-            self._data['key'].append(value)
+        for key in self._logged_field:
+            value = self.parameter(key)
+            self._data[key].append(value)
+
+        self._data['time'].append(time.time())
 
         self.sigUpdateDisplay.emit()
         self.timer.start(self._timestep)
 
-    def get_data(self, key, start=0):
-        """ Get an array of data entry for the given key from a start index
+    def get_data(self, key):
+        """ Get an array of data entry for the given key
 
         @param str key: key of the requested data
-        @param int start: start point of the array required
 
-        @ return list(any): raw data for given field
+        @return list(any): raw data for given field
 
         Main function to access data history.
-        The array is deepcopied to prevent modification by user module.
-        As a consequence, real time logging could take lots of resource. That is why it's better
-        to access only the last unread data in by keeping track of entry index.
         """
-        if key not in self._data_field:
+        if key not in self._logged_field:
             self.log.error('Data field {} is not acquired. Please check logic configuration parameters.'.format(key))
-        length = len(self._data[key])
-        if length > 0 and start >= length:
-            self.log.error('Start index is out of the array')
-        else:
-            return copy.deepcopy(self._data[key][start:])
+        return self._data[key]
 
-    def get_timestep(self):
-        """ Return current timestep between data entries
-
-        """
+    def timestep(self, value=None):
+        """ Function to get or change the timestep between entries """
+        if value:
+            self._timestep = value
+            self.timer.clear()
+            self.timer.start(self._timestep)
         return self._timestep
 
     def get_fields(self):
         """ Return enabled features
 
         """
-        return self._data_field
+        return {'active': self._active_fields, 'logged': self._logged_field}
 
     def save_data(self, path=None, filename=None, extension='.dat', start=0, end=None, step=1):
         """ Save all acquired data to file
@@ -148,27 +162,33 @@ class PIDLogic(GenericLogic):
         """
         pass
 
-    def set(self, key, value):
-        """ Set a value on the hardware for a given key
+    def parameter(self, key, value=None):
+        """ Get or set a value of the hardware for a given key
 
         @param key: key of the value to set
         @param value: value to set
 
         @return any: the value returned by the hardware function
         """
-        # Check that hardware module has setter function
-        setter = 'set_{}'.format(key)
-        if not hasattr(self._hardware, setter):
-            self.log('Setting {} is not possible, hardware module has no function {}'.format(key, setter))
+        if value:
+            # Check that hardware module has setter function
+            setter = 'set_{}'.format(key)
+            if not hasattr(self._hardware, setter):
+                self.log('Setting {} is not possible, hardware module has no function {}'.format(key, setter))
+                return
+            # If a get_X_limits exist in hardware, let's use it and warning if out of range
+            limits = self.limits(key)
+            if limits:  # True if not None
+                mini, maxi = limits
+                if not mini <= value <= maxi:
+                    self.log.warning('{} value {} is out of range [{}, {}]'.format(key, value, mini, maxi))
+            return getattr(self._hardware, setter)(value)
+        # else just get
+        getter = 'get_{}'.format(key)
+        if not hasattr(self._hardware, getter):
+            self.log('Getting {} is not possible, hardware module has no function {}'.format(key, getter))
             return
-        # If a get_X_limits exist in hardware, let's use it and warning if out of range
-        limits = self.limits(key)
-        if limits:  # True if not None
-            mini, maxi = limits
-            if not mini <= value <= maxi:
-                self.log.warning('{} value {} is out of range [{}, {}]'.format(key, value, mini, maxi))
-        # Now set it
-        return getattr(self._hardware, 'set_'.format(key))(value)
+        return getattr(self._hardware, getter)
 
     def limits(self, key):
         """ Get the limit tuple from the hardware for a given field

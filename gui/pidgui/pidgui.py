@@ -58,13 +58,14 @@ class PIDGui(GUIBase):
     sigStart = QtCore.Signal()
     sigStop = QtCore.Signal()
 
-    _fields = []
-    _interval = ConfigOption('interval', 0)  # 0 = show all
+    _active_fields = []
+    _logged_fields = []
     _left_axis_text = ConfigOption('left_axis_text', 'Process value')
     _left_axis_unit = ConfigOption('left_axis_unit', '')
     _legend = ConfigOption('legend', [''])
-    _last_index = 0
-    _data = {}
+
+    _logic = None
+    # GUI
     _link = None
 
     def __init__(self, config, **kwargs):
@@ -74,43 +75,51 @@ class PIDGui(GUIBase):
         """ Definition and initialisation of the GUI
 
         """
-        self. logic = self.pidlogic()
         self._logic = self.pidlogic()
-        self._fields = self._logic.get_fields()
-        for field in self._fields:
-            self._data[field] = []
-        self.get_data()
 
+        # Get data info
+        fields = self._logic.get_fields()
+        self._active_fields = fields['active']
+        self._logged_fields = fields['logged']
+
+        # Prepare UI
         self._init_window()
         self._init_axis()
+        self._logic.sigUpdate.connect(self._update_view_from_model)
 
-        self._logic.sigUpdate.connect(self.update_data)
-
-
+        # We construct a dictionary that link Qt object to their logic getter/setter
         self._link = {
             'button': [
                 ('start', self.start),
                 ('stop', self.stop),
             ],
             'checkbox': [],
-            'box': []
+            'box': [
+                ('timestep', self._logic.timestep)
+            ]
         }
 
-        # checkbox
-        if 'enabled' in self._fields:
-            self._link['checkbox'].append(('enabled', 'enabled'))
+        # Let's add some features to the dic if they are used
+        # Sometimes the getter/stter is not a signle function, so we use anonymous function (lambda)
 
-        # number
+        if 'enabled' in self._active_fields:
+            self._link['checkbox'].append(('enabled', lambda value=None: self._logic.parameter('enabled', value)))
+
         possible_fields = ('kp', 'kd', 'ki', 'setpoint')
         for field in possible_fields:
-            if field in self._fields:
-                self._link['box'].append(field)
+            if field in self._active_fields:
+                self._link['box'].append((field, lambda value=None: self.logic.parameter(field, value)))
 
-
+        # Now let's connect things
 
         for item in self._link['button']:
             name, func = item
             self._mw.getattr('{}_Action'.format(name)).triggered.connect(func)
+
+        for item in self._link['box']:
+            name, func = item
+            qt_object = self._mw.getattr('{}_Box'.format(name))
+            qt_object.editingFinished.connect(lambda: func(qt_object.value()))
 
     def _init_window(self):
         """ Create the main window
@@ -135,17 +144,20 @@ class PIDGui(GUIBase):
 
         for curve in self._legend:
             self._curves.append(
-                pg.PlotDataItem(pen=pg.mkPen(palette.c1), symbol=None))
+                pg.PlotDataItem(pen=pg.mkPen(palette.c1), symbol=None, name=curve))
 
     def _update_view_from_model(self):
         """ Update the view data from the logic data
         """
 
-        for name in self._link['checkbox']:
-            self._update_view('{}_Checkbox'.format(name), 'checkbox', self._data[name][-1])
+        for item in self._link['checkbox']:
+            name, func = item
+            self._update_view('{}_Checkbox'.format(name), 'checkbox', func())
 
-        for name in self._link['input']:
-            self._update_view('{}_Box'.format(name), 'box', self._data[name][-1])
+
+
+
+
 
     def _update_view(self, identifier, nature, value):
         """ Update a view field """
@@ -183,4 +195,5 @@ class PIDGui(GUIBase):
             self._data[field] += new
             if new:
                 updated = True
+                self._last_index =
         return updated
