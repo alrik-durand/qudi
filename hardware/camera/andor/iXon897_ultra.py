@@ -31,7 +31,7 @@ import numpy as np
 from core.module import Base, ConfigOption
 
 from interface.camera_interface import CameraInterface
-from interface.setpoint_controller_interface import SetpointControllerInterface
+# from interface.setpoint_controller_interface import SetpointControllerInterface
 
 
 class ReadMode(Enum):
