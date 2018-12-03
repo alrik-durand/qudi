@@ -22,16 +22,11 @@ import visa
 
 from core.module import Base, ConfigOption
 
-from interface.simple_data_interface import SimpleDataInterface
 
-try:
-    from ThorlabsPM100 import ThorlabsPM100
-except ImportError:
-    raise ImportError('ThorlabsPM100 module not found. Please install it by typing command "pip install ThorlabsPM100"')
 
 
 class E3631A(Base):
-    """ Hardware module for Agilent .
+    """ Hardware module for Keysight E3631A.
 
     Example config :
     powermeter:
@@ -59,21 +54,13 @@ class E3631A(Base):
         except:
             self.log.error('Could not connect to hardware. Please check the wires and the address.')
 
-        self._power_meter = ThorlabsPM100(inst=self._inst)
+        self.model = self._inst.query("*IDN?")
+        self._inst.write("INST P6V")
+
+        #self._inst.write("OUTP ON")
 
     def on_deactivate(self):
         """ Stops the module """
+        self._inst.write("OUTP OFF")
         self._inst.close()
-
-    def getData(self):
-        """ SimpleDataInterface function to get the power from the powermeter """
-        return np.array([self.get_power()])
-
-    def getChannels(self):
-        """ SimpleDataInterface function to know how many data channel the device has, here 1. """
-        return 1
-
-    def get_power(self):
-        """ Return the power read from the ThorlabsPM100 package """
-        return self._power_meter.read
 
