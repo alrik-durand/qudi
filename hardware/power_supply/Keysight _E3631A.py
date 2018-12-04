@@ -17,50 +17,101 @@ along with Qudi. If not, see <http://www.gnu.org/licenses/>.
 Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
 top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
 """
+import time
 import numpy as np
 import visa
 
 from core.module import Base, ConfigOption
+from interface.process_control_interface import ProcessControlInterface
 
 
 
 
-class E3631A(Base):
+class E3631A(Base, ProcessControlInterface):
     """ Hardware module for Keysight E3631A.
 
     Example config :
-    powermeter:
-        module.Class: 'powermeter.PM100D.PM100D'
-        address: 'USB0::0x1313::0x8078::P0013645::INSTR'
+        voltage_generator:
+            module.Class: 'power_supply.Keysight _E3631A.E3631A'
+            address: 'ASRL9::INSTR'
 
-    This module needs the ThorlabsPM100 package from PyPi, this package is not included in the environment
-    To add install it, type :
-    pip install ThorlabsPM100
-    in the Anaconda prompt after aving activated qudi environment
     """
-    _modclass = 'powermeter'
+    _modclass = 'powersupply'
     _modtype = 'hardware'
 
     _address = ConfigOption('address', missing='error')
-    _timeout = ConfigOption('timeout', 1)
-    _power_meter = None
+
+    _voltage_min = ConfigOption('voltage_min', 0)
+    _voltage_max = ConfigOption('voltage_max', 6)
+    _current_max = ConfigOption('current_max', 0.03)
 
     def on_activate(self):
         """ Startup the module """
 
         rm = visa.ResourceManager()
         try:
-            self._inst = rm.open_resource(self._address, timeout=self._timeout)
+            self._inst = rm.open_resource(self._address)
         except:
             self.log.error('Could not connect to hardware. Please check the wires and the address.')
 
-        self.model = self._inst.query("*IDN?")
-        self._inst.write("INST P6V")
+        self.model = self._query('*IDN?').split(',')[1]
 
-        #self._inst.write("OUTP ON")
+        self._write("*RST;*CLS")
+        time.sleep(3)
+        self._query("*OPC?")
+
+        self._write("INST P6V")
+        self._write("VOLT 0")
+        self._write("CURR {}".format(self._current_max))
+
+        self._write("OUTP ON")
 
     def on_deactivate(self):
         """ Stops the module """
-        self._inst.write("OUTP OFF")
+        self._write("OUTP OFF")
         self._inst.close()
+
+    def _write(self, cmd):
+        """ Function to write command to hardware"""
+        self._inst.write(cmd)
+        time.sleep(.01)
+
+    def _query(self, cmd):
+        """ Function to query hardware"""
+        return self._inst.query(cmd)
+
+
+    def setControlValue(self, value):
+        """ Set control value, here heating power.
+
+            @param flaot value: control value
+        """
+        min, max = self.getControlLimits()
+        if min <= value <= max:
+            self._write("VOLT {}".format(value))
+        else:
+            self.log.error('Voltage value {} out of range'.format(value))
+
+    def getControlValue(self):
+        """ Get current control value, here heating power
+
+            @return float: current control value
+        """
+        return float(self._query("VOLT?").split('\r')[0])
+
+    def getControlUnit(self):
+        """ Get unit of control value.
+
+            @return tuple(str): short and text unit of control value
+        """
+        return ('V', 'Volt')
+
+    def getControlLimits(self):
+        """ Get minimum and maximum of control value.
+
+            @return tuple(float, float): minimum and maximum of control value
+        """
+        return self._voltage_min, self._voltage_max
+
+
 
