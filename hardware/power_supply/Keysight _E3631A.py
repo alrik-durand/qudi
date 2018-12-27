@@ -18,13 +18,10 @@ Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
 top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
 """
 import time
-import numpy as np
 import visa
 
 from core.module import Base, ConfigOption
 from interface.process_control_interface import ProcessControlInterface
-
-
 
 
 class E3631A(Base, ProcessControlInterface):
@@ -43,7 +40,10 @@ class E3631A(Base, ProcessControlInterface):
 
     _voltage_min = ConfigOption('voltage_min', 0)
     _voltage_max = ConfigOption('voltage_max', 6)
-    _current_max = ConfigOption('current_max', 0.03)
+    _current_max = ConfigOption('current_max', missing='error')
+
+    _inst = None
+    model = ''
 
     def on_activate(self):
         """ Startup the module """
@@ -51,7 +51,7 @@ class E3631A(Base, ProcessControlInterface):
         rm = visa.ResourceManager()
         try:
             self._inst = rm.open_resource(self._address)
-        except:
+        except visa.VisaIOError:
             self.log.error('Could not connect to hardware. Please check the wires and the address.')
 
         self.model = self._query('*IDN?').split(',')[1]
@@ -80,38 +80,34 @@ class E3631A(Base, ProcessControlInterface):
         """ Function to query hardware"""
         return self._inst.query(cmd)
 
-
-    def setControlValue(self, value):
+    def set_control_value(self, value):
         """ Set control value, here heating power.
 
             @param flaot value: control value
         """
-        min, max = self.getControlLimits()
-        if min <= value <= max:
+        mini, maxi = self.get_control_limits()
+        if mini <= value <= maxi:
             self._write("VOLT {}".format(value))
         else:
             self.log.error('Voltage value {} out of range'.format(value))
 
-    def getControlValue(self):
+    def get_control_value(self):
         """ Get current control value, here heating power
 
             @return float: current control value
         """
         return float(self._query("VOLT?").split('\r')[0])
 
-    def getControlUnit(self):
+    def get_control_unit(self):
         """ Get unit of control value.
 
             @return tuple(str): short and text unit of control value
         """
-        return ('V', 'Volt')
+        return 'V', 'Volt'
 
-    def getControlLimits(self):
+    def get_control_limits(self):
         """ Get minimum and maximum of control value.
 
             @return tuple(float, float): minimum and maximum of control value
         """
         return self._voltage_min, self._voltage_max
-
-
-
