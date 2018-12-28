@@ -32,7 +32,7 @@ class Task(InterruptableTask):
 
     def startTask(self):
         """ Get position from scanning device and do the refocus """
-        pos = self.ref['optimizer']._scanning_device.get_scanner_position()
+        pos = self.ref['scanner'].get_scanner_position()
         self.ref['optimizer'].start_refocus(pos, 'task')
         # self.ref['optimizer'].start_refocus(caller_tag='task')
 
@@ -56,8 +56,8 @@ class Task(InterruptableTask):
         """ Check whether anything we need is locked. """
         print('things needed for task to start')
         return (
-            not self.ref['optimizer']._scanning_device.isstate('locked')
-            and not self.ref['optimizer'].isstate('locked')
+            not self.ref['scanner'].module_state() == 'locked'
+            and not self.ref['optimizer'].module_state() == 'locked'
             )
 
     def checkExtraPausePrerequisites(self):
