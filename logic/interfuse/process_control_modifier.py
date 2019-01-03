@@ -121,6 +121,6 @@ class ProcessControlModifier(GenericLogic, ProcessControlInterface):
         """ Return limits within which the controlled value can be set as a tuple of (low limit, high limit)
         """
         mini, maxi = self._hardware.get_control_limits()
-        mini = self._interpolated_function_reversed(mini)
-        maxi = self._interpolated_function_reversed(maxi)
+        mini = float(self._interpolated_function_reversed(mini))
+        maxi = float(self._interpolated_function_reversed(maxi))
         return mini, maxi

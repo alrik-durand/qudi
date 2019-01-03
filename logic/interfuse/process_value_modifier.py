@@ -88,7 +88,7 @@ class ProcessValueModifier(GenericLogic, ProcessInterface):
         """ Return the process value modified
         """
         if self._interpolated_function is not None:
-            return self._interpolated_function(self._hardware.get_process_value())
+            return float(self._interpolated_function(self._hardware.get_process_value()))
         else:
             self.log.error('No calibration was found, please set the process value modifier data first.')
 
