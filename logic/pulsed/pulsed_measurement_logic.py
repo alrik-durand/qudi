@@ -345,6 +345,10 @@ class PulsedMeasurementLogic(GenericLogic):
         else:
             err = self.fast_counter_pause()
         return err
+
+    @property
+    def elapsed_sweeps(self):
+        return self.__elapsed_sweeps
     ############################################################################
 
     ############################################################################
