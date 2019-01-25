@@ -1541,6 +1541,9 @@ class PulsedMeasurementLogic(GenericLogic):
         parameters['alternating'] = self._alternating
         parameters['Controlled variable'] = list(self.signal_data[0])
 
+        parameters['Approx. measurement time (s)'] = self.__elapsed_time
+        parameters['Measurement sweeps'] = self.__elapsed_sweeps
+
         self.savelogic().save_data(data, timestamp=timestamp,
                                    parameters=parameters, fmt='%d',
                                    filepath=filepath, filelabel=filelabel,
