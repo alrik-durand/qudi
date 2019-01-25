@@ -58,6 +58,8 @@ class Task(InterruptableTask):
 
         """
 
+        self.check_config_key('name', 'pulsed_task')
+
         self._was_running =  self._measurement.module_state() == 'locked'
         self._was_loaded = self._generator.loaded_asset
         self._was_power = self._laser.get_power_setpoint()
@@ -78,6 +80,10 @@ class Task(InterruptableTask):
         self.check_config_key('switch_time', 5*60)
 
         self.check_config_key('max_time', None)
+
+        self.check_config_key('save_laser_pulses', True)
+        self.check_config_key('save_pulsed_measurement', True)
+        self.check_config_key('save_figure', True)
 
         self._start_time = time.time()
 
@@ -135,19 +141,19 @@ class Task(InterruptableTask):
     def activate_row(self):
         """ Method to create pulsed sequence for current row and measurement settings """
         self.wait_for_idle()
-        self.make_sequence('robledo', **self.get_current_row())
+        self.make_sequence(self.config['name'], **self.get_current_row())
         self._measurement._invoke_settings_from_sequence = True
         self._laser.set_power(self.get_current_row()['power'])
         self._measurement.start_pulsed_measurement(self.get_key(self._current_row))
 
     def make_sequence(self, name, wait_time, laser_delay, laser_length, **_):
         """ Build, sample and load the current row ensemble """
-        self._master.set_generation_parameters(wait_time=wait_time)
-        self._master.set_generation_parameters(laser_delay=laser_delay)
-        self._master.set_generation_parameters(laser_length=laser_length)
-        self._master.generate_predefined_sequence(generator_method_name=name, kwarg_dict={})
-        self._master.sample_ensemble(name)
-        self._master.load_ensemble(name)
+        self._generator.set_generation_parameters(wait_time=wait_time)
+        self._generator.set_generation_parameters(laser_delay=laser_delay)
+        self._generator.set_generation_parameters(laser_length=laser_length)
+        self._generator.generate_predefined_sequence(predefined_sequence_name=name, kwargs_dict={})
+        self._generator.sample_pulse_block_ensemble(name)
+        self._generator.load_ensemble(name)
 
     def pauseTask(self):
         """ Pause the acquisition in a way that can be resumed even if user change stuff in pulsed module"""
@@ -171,9 +177,13 @@ class Task(InterruptableTask):
             self._current_row = i
             self.activate_row()
             self.stop_current_row()
-            self._measurement.save_measurement_data(tag=self.name)
+            self._measurement.save_measurement_data(tag=self.name,
+                                                    save_laser_pulses=self.config['save_laser_pulses'],
+                                                    save_pulsed_measurement=self.config['save_pulsed_measurement'],
+                                                    save_figure=self.config['save_figure'])
 
         if self._was_loaded[1] == 'PulseBlockEnsemble':
+            self.wait_for_idle()
             self._generator.load_ensemble(self._was_loaded[0])
         self._laser.set_power(self._was_power)
         if self._was_running:
@@ -185,7 +195,8 @@ class Task(InterruptableTask):
         @param timeout: the maximum time to wait before causing an error (in seconds)
         """
         counter = 0
-        while self._measurement.module_state() != 'idle' and counter < timeout:
+        while self._measurement.module_state() != 'idle' and not self._master.status_dict['measurement_running'] and\
+                counter < timeout:
             time.sleep(0.1)
             counter += 0.1
 
