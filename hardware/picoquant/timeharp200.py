@@ -668,45 +668,24 @@ class TimeHarp200(Base, SlowCounterInterface, SimpleDataInterface):
     #  Higher Level function, which should be called directly from Logic
     # =========================================================================
 
-
     # =========================================================================
     #  Functions for the SlowCounter Interface
     # =========================================================================
 
-    def set_up_clock(self, clock_frequency = None, clock_channel = None):
-        """ Set here which channel you want to access of the Picoharp.
-
-        @param float clock_frequency: Sets the frequency of the clock. That
-                                      frequency will not be taken. It is not
-                                      needed, and argument will be omitted.
-        @param string clock_channel: This is the physical channel
-                                     of the clock. It is not needed, and
-                                     argument will be omitted.
-
-        The Hardware clock for the Picoharp is not programmable. It is a gated
-        counter every 100ms. That you cannot change. You can retrieve from both
-        channels simultaneously the count rates.
+    def set_up_clock(self, clock_frequency=None, clock_channel=None):
+        """  Ensure Interface compatibility. The counter allows no set up.
 
         @return int: error code (0:OK, -1:error)
         """
-        self.log.info('Picoharp: The Hardware clock for the Picoharp is not '
-                    'programmable!\n'
-                    'It is a gated counter every 100ms. That you cannot change. '
-                    'You can retrieve from both channels simultaneously the '
-                    'count rates.')
-
         return 0
 
     def set_up_counter(self, counter_channels=None, sources=None,
-                       clock_channel = None, counter_buffer=None):
-        """ Ensure Interface compatibility. The counter allows no set up.
+                       clock_channel=None, counter_buffer=None):
+        """ This function is called when the counter is started
 
         @return int: error code (0:OK, -1:error)
         """
-        self.log.info('Picoharp: The counter allows no set up!\n'
-                    'The implementation of this command ensures Interface '
-                    'compatibility.')
-
+        self.run()
         return 0
 
     def get_counter_channels(self):
@@ -714,16 +693,27 @@ class TimeHarp200(Base, SlowCounterInterface, SimpleDataInterface):
         return ['Start counter']
 
     def get_constraints(self):
-        """ Get hardware limits of NI device.
+        """ Get hardware limits of device.
 
         @return SlowCounterConstraints: constraints class for slow counter
 
         """
-        constraints = SlowCounterConstraints()
+
+        class CounterConstraints(SlowCounterConstraints):
+
+            def __init__(self):
+                super().__init__()
+                self.hardware_binwidth_list = []
+
+        constraints = CounterConstraints()
         constraints.max_detectors = 1
         constraints.min_count_frequency = 1e-3
-        constraints.max_count_frequency = 1e3
+        constraints.max_count_frequency = 20
         constraints.counting_mode = [CountingMode.CONTINUOUS]
+
+        # Fast counter binwidth
+        constraints.hardware_binwidth_list = np.power(2, np.arange(0, self.RANGES)) * self.get_base_resolution()
+
         return constraints
 
     def get_counter(self, samples=None):
@@ -733,22 +723,21 @@ class TimeHarp200(Base, SlowCounterInterface, SimpleDataInterface):
 
         @return float: the photon counts per second
         """
+        if self.module_state != 'running':
+            self.log.error('Can not get count if counter is not running')
         time.sleep(0.05)
         return [self.get_count_rate()]
 
     def close_counter(self):
-        """ Closes the counter and cleans up afterwards. Actually, you do not
-        have to do anything with the picoharp. Therefore this command will do
-        nothing and is only here for SlowCounterInterface compatibility.
+        """ Ensure Interface compatibility. The counter allows no set up.
 
         @return int: error code (0:OK, -1:error)
         """
+        self.stop()
         return 0
 
     def close_clock(self):
-        """Closes the clock and cleans up afterwards.. Actually, you do not
-        have to do anything with the picoharp. Therefore this command will do
-        nothing and is only here for SlowCounterInterface compatibility.
+        """ Ensure Interface compatibility. The counter allows no set up.
 
         @return int: error code (0:OK, -1:error)
         """
@@ -758,7 +747,50 @@ class TimeHarp200(Base, SlowCounterInterface, SimpleDataInterface):
     #  Functions for the FastCounter Interface
     # =========================================================================
 
-    # TODO
+    # get_constraints is shared with slow counter, this is very dirty...
+
+    def configure(self, bin_width_ns, record_length_ns, number_of_gates=0):
+        """
+        Configuration of the fast counter.
+        bin_width_ns: Length of a single time bin in the time trace histogram
+                      in nanoseconds.
+        record_length_ns: Total length of the timetrace/each single gate in
+                          nanoseconds.
+        number_of_gates: Number of gates in the pulse sequence. Ignore for
+                         ungated counter.
+        """
+        # self.set_mode(mode=0)
+        self._bin_width_ns = bin_width_ns
+        self._record_length_ns = record_length_ns
+        self._number_of_gates = number_of_gates
+
+        # FIXME: actualle only an unsigned array will be needed. Change that later.
+        #        self.data_trace = np.zeros(number_of_gates, dtype=np.int64 )
+        self.data_trace = [0] * number_of_gates
+        self.count = 0
+
+        self.result = []
+        return
+
+    def get_status(self):
+        """
+        Receives the current status of the Fast Counter and outputs it as
+        return value.
+        0 = unconfigured
+        1 = idle
+        2 = running
+        3 = paused
+        -1 = error state
+        """
+        if not self.connected_to_device:
+            return -1
+        else:
+            returnvalue = self._get_status()
+            if returnvalue == 0:
+                return 2
+            else:
+                return 1
+
 
     # =========================================================================
     #  Test routine for continuous readout
