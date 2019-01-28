@@ -44,12 +44,6 @@ class Task(InterruptableTask):
         """ Helper method to get a generation parameter """
         return self._generator._generation_parameters[param]
 
-    def check_config_key(self, key, default, possible_values=None):
-        """ Helper method to check is a key is defined in config and set a default value if not """
-        if key not in self.config or self.config[key] is None or \
-            (possible_values is not None and self.config[key] not in possible_values):
-            self.config[key] = default
-
     def startTask(self):
         """ Method called when the task is tarted
 
