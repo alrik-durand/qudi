@@ -22,24 +22,29 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 from logic.generic_task import InterruptableTask
 import time
 
+
 class Task(InterruptableTask):
     """ This task does a confocal focus optimisation.
     """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        print('Task {0} added!'.format(self.name))
+        self._poi_manager = self.ref['poi_manager']
+        self._laser = self.ref['laser']
+        self._was_power = None
+        self.check_config_key('power', 300e-6)
+        self._power = self.config['power']
 
     def startTask(self):
         """ Get position from scanning device and do the refocus """
-        pos = self.ref['scanner'].get_scanner_position()
-        self.ref['optimizer'].start_refocus(pos, 'task')
-        # self.ref['optimizer'].start_refocus(caller_tag='task')
+        self._was_power = self._laser.get_power_setpoint()
+        self._laser.set_power(self._power)
+        self._poi_manager.optimise_poi(poikey=self._poi_manager._current_poi_key)
 
     def runTaskStep(self):
         """ Wait for refocus to finish. """
         time.sleep(0.1)
-        return self.ref['optimizer'].isstate('locked')
+        return self._poi_manager._optimizer_logic.module_state() != 'idle'
 
     def pauseTask(self):
         """ pausing a refocus is forbidden """
@@ -50,15 +55,12 @@ class Task(InterruptableTask):
         pass
 
     def cleanupTask(self):
-        """ nothing to clean up, optimizer can do that by itself """
+        """ nothing to clean up """
+        self._laser.set_power(self._was_power)
 
     def checkExtraStartPrerequisites(self):
         """ Check whether anything we need is locked. """
-        print('things needed for task to start')
-        return (
-            not self.ref['scanner'].module_state() == 'locked'
-            and not self.ref['optimizer'].module_state() == 'locked'
-            )
+        return self._poi_manager._optimizer_logic.module_state() == 'idle'
 
     def checkExtraPausePrerequisites(self):
         """ pausing a refocus is forbidden """
