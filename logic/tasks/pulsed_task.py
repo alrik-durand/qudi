@@ -40,6 +40,7 @@ class Task(InterruptableTask):
         self._generator = self.ref['pulsed_master'].sequencegeneratorlogic()
         self._measurement = self.ref['pulsed_master'].pulsedmeasurementlogic()
         self._laser = self.ref['laser']
+        self._save = self.ref['save']
 
     def get_generation_parameter(self, param):
         """ Helper method to get a generation parameter """
@@ -55,9 +56,12 @@ class Task(InterruptableTask):
 
         self.check_config_key('name', 'pulsed_task')
 
-        self._was_running =  self._measurement.module_state() == 'locked'
-        self._was_loaded = self._generator.loaded_asset
+        self._was_running = self._measurement.module_state() == 'locked'
+        self._was_loaded = tuple(self._generator.loaded_asset)
         self._was_power = self._laser.get_power_setpoint()
+        if self._was_running:
+            self._measurement.stop_pulsed_measurement()
+        self._was_invoke_settings = self._measurement.measurement_settings['invoke_settings']
 
         self.check_config_key('wait_time', [self.get_generation_parameter('wait_time')])
         self.check_config_key('laser_length', [self.get_generation_parameter('laser_length')])
@@ -119,6 +123,7 @@ class Task(InterruptableTask):
         self.get_current_row()['elapsed_sweeps'] = self._measurement.elapsed_sweeps
         self.get_current_row()['elapsed_photon_count'] = self._measurement.raw_data.sum()
         self._time_since_last_swtich = 0
+        self.wait_for_idle()
 
     def go_to_next_row(self):
         """ Method  to stop current row and start next """
@@ -139,6 +144,7 @@ class Task(InterruptableTask):
         self._measurement.set_measurement_settings(invoke_settings=True)
         self._laser.set_power(self.get_current_row()['power'])
         self._measurement.start_pulsed_measurement(self.get_key(self._current_row))
+        self._save.update_additional_parameters(**self._list[self._current_row])
 
     def make_sequence(self, name, wait_time, laser_delay, laser_length, **_):
         """ Build, sample and load the current row ensemble """
@@ -151,10 +157,17 @@ class Task(InterruptableTask):
 
     def pauseTask(self):
         """ Pause the acquisition in a way that can be resumed even if user change stuff in pulsed module"""
+        pass
+
+    def on_pausing(self, e):
+        """ Function that is actually called before other task are started """
         self.stop_current_row()
+        self.wait_for_idle()
 
     def resumeTask(self):
         """ Resume paused measurement """
+        if self._measurement.module_state() != 'idle':
+            self._measurement.stop_pulsed_measurement('refocus')
         self.activate_row()
 
     def cleanupTask(self):
@@ -178,21 +191,25 @@ class Task(InterruptableTask):
 
         if self._was_loaded[1] == 'PulseBlockEnsemble':
             self.wait_for_idle()
+            self._generator.sample_pulse_block_ensemble(self._was_loaded[0])
             self._generator.load_ensemble(self._was_loaded[0])
         self._laser.set_power(self._was_power)
+        self._measurement.set_measurement_settings(invoke_settings=self._was_invoke_settings)
         if self._was_running:
             self._measurement.start_pulsed_measurement()
 
-    def wait_for_idle(self, timeout=10):
+    def wait_for_idle(self, timeout=20):
         """ Function to wait for the measurement to be idle
 
         @param timeout: the maximum time to wait before causing an error (in seconds)
         """
         counter = 0
-        while self._measurement.module_state() != 'idle' and not self._master.status_dict['measurement_running'] and\
+        while self._measurement.module_state() != 'idle' and self._master.status_dict['measurement_running'] and\
                 counter < timeout:
             time.sleep(0.1)
             counter += 0.1
+        if counter >= timeout:
+            self.log.warning('Measurement is too long to stop, continuing anyway')
 
     # def checkExtraStartPrerequisites(self):
     #     """ Check whether anything we need is locked. """
