@@ -28,6 +28,7 @@ import numpy as np
 import os
 import sys
 import time
+import copy
 
 from collections import OrderedDict
 from core.module import ConfigOption
@@ -645,9 +646,10 @@ class SaveLogic(GenericLogic):
 
     def update_additional_parameters(self, **new_pairs):
         """ Method to update one or multiple additional parameters """
+        new_pairs = copy.deepcopy(new_pairs)  # prevent remote problems
         self._additional_parameters = {**self._additional_parameters, **new_pairs}
 
-    def remove_additional_parameter(self, key):
+    def remove_additional_parameters(self, key):
         """ remove a parameter from additional parameters """
         self._additional_parameters.pop(key, None)
 
