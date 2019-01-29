@@ -25,6 +25,7 @@ from sklearn.model_selection import ParameterGrid
 import random
 import numpy as np
 
+
 class Task(InterruptableTask):
     """ This task is used to acquire a pulsed experiment in a interruptable context
 
@@ -42,7 +43,7 @@ class Task(InterruptableTask):
 
     def get_generation_parameter(self, param):
         """ Helper method to get a generation parameter """
-        return self._generator._generation_parameters[param]
+        return self._generator.generation_parameters[param]
 
     def startTask(self):
         """ Method called when the task is tarted
@@ -88,7 +89,6 @@ class Task(InterruptableTask):
 
         self.activate_row()
 
-
     def runTaskStep(self):
         """ The main loop of the task
 
@@ -128,15 +128,15 @@ class Task(InterruptableTask):
                       'same_photon_count': 'elapsed_photon_count',
                       'same_sweeps': 'elapsed_sweeps'}
         array = np.array([row[properties[self.config['duration_mode']]] for row in self._list])
-        next = np.argmin(array)
-        self._current_row = next
+        next_row = np.argmin(array)
+        self._current_row = next_row
         self.activate_row()
 
     def activate_row(self):
         """ Method to create pulsed sequence for current row and measurement settings """
         self.wait_for_idle()
         self.make_sequence(self.config['name'], **self.get_current_row())
-        self._measurement._invoke_settings_from_sequence = True
+        self._measurement.set_measurement_settings(invoke_settings=True)
         self._laser.set_power(self.get_current_row()['power'])
         self._measurement.start_pulsed_measurement(self.get_key(self._current_row))
 
@@ -193,7 +193,6 @@ class Task(InterruptableTask):
                 counter < timeout:
             time.sleep(0.1)
             counter += 0.1
-
 
     # def checkExtraStartPrerequisites(self):
     #     """ Check whether anything we need is locked. """
