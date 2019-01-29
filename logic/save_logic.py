@@ -649,7 +649,7 @@ class SaveLogic(GenericLogic):
         """ Method to update one or multiple additional parameters """
         dic = {}
         for key in new_pairs.keys():
-            dic['key'] = netobtain(new_pairs[key])
+            dic[key] = netobtain(new_pairs[key])
         self._additional_parameters = {**self._additional_parameters, **dic}
 
     def remove_additional_parameters(self, key):
