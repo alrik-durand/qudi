@@ -69,6 +69,10 @@ class SequenceGeneratorLogic(GenericLogic):
     _sampling_functions_import_path = ConfigOption(name='additional_sampling_functions_path',
                                                    default=None,
                                                    missing='nothing')
+    # Some pulser use underscore to separate sequence channels. But the predefined methods also user underscores
+    # in their names. If you're not using different assets per channels you can set this to False
+    # This is a bit dirty and will probably be cleaned in a future version
+    _split_loaded_assets_names = ConfigOption(name='split_loaded_assets_names', default=True)
 
     # status vars
     # Global parameters describing the channel usage and common parameters used during pulsed object
@@ -278,17 +282,18 @@ class SequenceGeneratorLogic(GenericLogic):
     def loaded_asset(self):
         asset_names, asset_type = self.pulsegenerator().get_loaded_assets()
         name_list = list(asset_names.values())
+        max_split = 1 if self._split_loaded_assets_names else 0
         if asset_type == 'waveform' and len(name_list) > 0:
             return_type = 'PulseBlockEnsemble'
-            return_name = name_list[0].rsplit('_', 1)[0]
+            return_name = name_list[0].rsplit('_', max_split)[0]
             for name in name_list:
-                if name.rsplit('_', 1)[0] != return_name:
+                if name.rsplit('_', max_split)[0] != return_name:
                     return '', ''
         elif asset_type == 'sequence' and len(name_list) > 0:
             return_type = 'PulseSequence'
-            return_name = name_list[0].rsplit('_', 1)[0]
+            return_name = name_list[0].rsplit('_', max_split)[0]
             for name in name_list:
-                if name.rsplit('_', 1)[0] != return_name:
+                if name.rsplit('_', max_split)[0] != return_name:
                     return '', ''
         else:
             return '', ''
