@@ -90,7 +90,10 @@ class Interfuse(GenericLogic, SimpleLaserInterface):
 
     def _set_power(self, power):
         """ Function that set the control value no matter what """
-        self._control.set_control_value(power/self._max_power)
+        if self._max_power != 0:
+            self._control.set_control_value(power/self._max_power)
+        else:
+            self._control.set_control_value(0)
 
     def set_power(self, power):
         """ Set power setpoint.
