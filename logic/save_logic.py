@@ -38,6 +38,7 @@ from logic.generic_logic import GenericLogic
 from matplotlib.backends.backend_pdf import PdfPages
 from PIL import Image
 from PIL import PngImagePlugin
+from core.util.network import netobtain
 
 
 class DailyLogHandler(logging.FileHandler):
@@ -646,7 +647,8 @@ class SaveLogic(GenericLogic):
 
     def update_additional_parameters(self, **new_pairs):
         """ Method to update one or multiple additional parameters """
-        new_pairs = copy.deepcopy(new_pairs)  # prevent remote problems
+
+        new_pairs = netobtain(new_pairs)  # prevent remote problems
         self._additional_parameters = {**self._additional_parameters, **new_pairs}
 
     def remove_additional_parameters(self, key):
