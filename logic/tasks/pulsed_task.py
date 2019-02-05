@@ -21,9 +21,10 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 
 from logic.generic_task import InterruptableTask
 import time
-from sklearn.model_selection import ParameterGrid
+# from sklearn.model_selection import ParameterGrid
 import random
 import numpy as np
+import copy
 
 
 class Task(InterruptableTask):
@@ -32,6 +33,7 @@ class Task(InterruptableTask):
     it needs :
         - 'pulsed_master' : pulsed_measurement_logic
         - 'laser' : laser to control power
+        - 'save' : save logic to update additional parameters
     """
 
     def __init__(self, **kwargs):
@@ -46,12 +48,47 @@ class Task(InterruptableTask):
         """ Helper method to get a generation parameter """
         return self._generator.generation_parameters[param]
 
+    def grid(self, dic):
+        """ Create an list of dict representing a parameter space
+
+            @param (dict) dic: A dictionarry where each key is a parameter and values the possible values
+
+            @return (list): a list of parameter points dictionnaryies
+
+            This function tries to copy sklearn ParameterGrid object.
+
+            It takes a input {'a': [1, 2], 'b': [True, False]} and output :
+                [{'b': True, 'a': 1}, {'b': False, 'a': 1},
+                 {'b': True, 'a': 2}, {'b': False, 'a': 2}]
+        """
+        dic = copy.deepcopy(dic)
+        first_key = list(dic.keys())[0]
+        if len(dic) == 1:
+            return [{first_key: value} for value in dic[first_key]]
+        else:
+            values = dic.pop(first_key)
+            _list = []
+            sub_list = self.grid(dic)
+            for value in values:
+                sub_list = copy.deepcopy(sub_list)
+                for l in sub_list:
+                    l[first_key] = value
+                _list += sub_list
+            return _list
+
+    def get_current_predefined_method_parameters(self):
+        """ Getter method for the parameters that should be sent to the predefined generation method """
+        row = copy.deepcopy(self.get_current_row())
+        res = {}
+        for key in self.config['predefined_method_parameters'].keys():
+            res[key] = row(key)
+        return res
+
     def startTask(self):
         """ Method called when the task is tarted
 
         1. Check the parameters in config
         2. Create the parameter grid
-
         """
 
         self.check_config_key('name', 'pulsed_task')
@@ -67,16 +104,18 @@ class Task(InterruptableTask):
         self.check_config_key('laser_length', [self.get_generation_parameter('laser_length')])
         self.check_config_key('laser_delay', [self.get_generation_parameter('laser_delay')])
         self.check_config_key('power', [self._laser.get_power_setpoint()])
+        self.check_config_key('predefined_method_parameters', {})
         parameters = ['wait_time', 'laser_length', 'laser_delay', 'power']
         param_grid = dict([(key, self.config[key]) for key in parameters])
-        param_grid['elapsed_time'] = [0]
-        param_grid['elapsed_photon_count'] = [0]
+        param_grid.update(self.config['predefined_method_parameters'])
 
-        self._list = list(ParameterGrid(param_grid))
+        self._list = self.grid(param_grid)
+        self._list_metadata = [{'elapsed_time': 0, 'elapsed_photon_count': 0, 'elapsed_sweeps': 0}]*len(self._list)
+
 
         duration_modes = ['same_time', 'same_photon_count', 'same_sweeps']
         self.check_config_key('duration_mode', 'same_time', possible_values=duration_modes)
-        self.check_config_key('switch_time', 5*60)
+        self.check_config_key('switch_time', 1*60)
 
         self.check_config_key('max_time', None)
 
@@ -119,22 +158,22 @@ class Task(InterruptableTask):
     def stop_current_row(self):
         """ Method to stop the current row acquisition """
         self._measurement.stop_pulsed_measurement(self.get_key(self._current_row))
-        self.get_current_row()['elapsed_time'] = self.get_current_row()['elapsed_time'] + self._time_since_last_swtich
-        self.get_current_row()['elapsed_sweeps'] = self._measurement.elapsed_sweeps
-        self.get_current_row()['elapsed_photon_count'] = self._measurement.raw_data.sum()
-        self._time_since_last_swtich = 0
+        current_meta = self._list_metadata[self._current_row]
+        current_meta['elapsed_time'] = self._measurement.elapsed_time
+        current_meta['elapsed_sweeps'] = self._measurement.elapsed_sweeps
+        current_meta['elapsed_photon_count'] = self._measurement.raw_data.sum()
         self.wait_for_idle()
 
     def go_to_next_row(self):
         """ Method  to stop current row and start next """
         self.stop_current_row()
+        self._time_since_last_swtich = 0
 
         properties = {'same_time': 'elapsed_time',
                       'same_photon_count': 'elapsed_photon_count',
                       'same_sweeps': 'elapsed_sweeps'}
-        array = np.array([row[properties[self.config['duration_mode']]] for row in self._list])
-        next_row = np.argmin(array)
-        self._current_row = next_row
+        array = np.array([row[properties[self.config['duration_mode']]] for row in self._list_metadata])
+        self._current_row = np.argmin(array)
         self.activate_row()
 
     def activate_row(self):
@@ -151,7 +190,8 @@ class Task(InterruptableTask):
         self._generator.set_generation_parameters(wait_time=wait_time)
         self._generator.set_generation_parameters(laser_delay=laser_delay)
         self._generator.set_generation_parameters(laser_length=laser_length)
-        self._generator.generate_predefined_sequence(predefined_sequence_name=name, kwargs_dict={})
+        self._generator.generate_predefined_sequence(predefined_sequence_name=name,
+                                                     kwargs_dict=self.get_current_predefined_method_parameters())
         self._generator.sample_pulse_block_ensemble(name)
         self._generator.load_ensemble(name)
 
@@ -167,7 +207,7 @@ class Task(InterruptableTask):
     def resumeTask(self):
         """ Resume paused measurement """
         if self._measurement.module_state() != 'idle':
-            self._measurement.stop_pulsed_measurement('refocus')
+            self._measurement.stop_pulsed_measurement()
         self.activate_row()
 
     def cleanupTask(self):
