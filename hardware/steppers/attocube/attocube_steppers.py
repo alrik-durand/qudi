@@ -285,9 +285,9 @@ class AttoCubeStepper(Base, SteppersInterface):
         """
         For a given axis input and a given ax, return the value that make the most sense
         """
-        if type(value) == float or type(value) == int:  # a single number : we return it
+        if isinstance(value, (float, int)):  # a single number : we return it
             return value
-        elif type(value) == list or type(value) == tuple:  # an array
+        elif isinstance(value, (list, tuple)):  # an array
             if len(value) == 1:  # a single object in array : we return it
                 return value[0]
             elif len(value) == len(axis):  # one to one correspondence with axis
