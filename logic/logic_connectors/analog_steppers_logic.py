@@ -149,8 +149,8 @@ class AnalogSteppersLogic(GenericLogic):
                     changed = True
         self._hardware_position = after
         if changed:
-            self.log.debug('New position ({}, {}, {})'.format(*after))
-#            print('New position ({}, {}, {})'.format(*after)) # print is bad but log.debug is too slow
+            #     self.log.debug('New position ({}, {}, {})'.format(*after))
+            print('New position ({}, {}, {})'.format(*after)) # print is bad but log.debug is too slow
 
 
     def hello(self):
