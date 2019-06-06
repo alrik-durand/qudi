@@ -23,8 +23,10 @@ Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
 top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
 """
 
+import time
 import socket
 from core.module import Base, ConfigOption
+import numpy as np
 
 # from interface.process_interface import ProcessInterface
 
@@ -64,9 +66,9 @@ class Cryocon(Base):
 
     _ip_address = ConfigOption('ip_address')
     _ip_port = ConfigOption('port', 5000)
+    _main_channel = ConfigOption('main_channel', 'A')
 
     _socket = None
-
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -76,27 +78,67 @@ class Cryocon(Base):
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module.
         """
-        if self._socket:
-            self._socket.close()
+        try:
+            if self._socket:
+                self._socket.close()
+        except:
+            self.log.warning('Crycon connexion has not been closed properly.')
+
+    def get_temperature(self, channel=None):
+        """ Cryocon function to get one temperature """
+        channel = channel if channel is not None else self._main_channel
+        try:
+            temperature = float(self._socket.query('INPUT? {}'.format(channel)).decode())
+        except:
+            temperature = np.NaN
+        return temperature
+
+    def set_temperature(self, temperature, channel=None, turn_on=False):
+        """ Function to set the temperature setpoint """
+        channel = channel if channel is not None else self._main_channel
+        loop = 0 if channel == 'A' else 1
+        self._socket.write('loop {}:setp {}'.format(loop, temperature))
+        if turn_on:
+            self.control()
 
     def get_process_value(self):
         """ Get measured value of the temperature """
-        temperature_a = float(self._socket.query('INPUT? A'))
-        temperature_b = float(self._socket.query('INPUT? B'))
-        return temperature_a, temperature_b
+        return self.get_temperature()
 
     def get_process_unit(self):
         """ Return the unit of measured temperature """
         return 'K', 'Kelvin'
 
     def stop(self):
-            self._socket.write('stop')
+        """  Function to stop the heating of the Cryocon """""
+        self._socket.write('stop')
 
     def control(self):
+        """ Function to turn the heating on """
         self._socket.write('control')
 
-    def set_control_value(self, loop=1, temperature=4):
-        self._socket.write('loop {}:setp {}'.format(loop, temperature))
+    def set_control_value(self, value):
+        """ Set the value of the controlled process variable """
+        self.set_temperature(temperature=value)
+
+    def wait_for_temperature(self, temperature, delta=0.1, timeout=60*60):
+        """ Set the temperature and wait until the setpoint temperature is reached
+
+        @param temperature: The new setpoint
+        @param delta: The error margin between the measured value and the setpoint to stop
+        @param timeout: The maximum time to wait
+        @return (bool): True if successful, False if timeout
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            current_temperature = self.get_temperature()
+            if temperature - delta < current_temperature < temperature + delta:
+                        return True
+            time.sleep(1)
+        return False
+
+
+
 
 
 
