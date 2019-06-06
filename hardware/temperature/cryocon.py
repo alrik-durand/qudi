@@ -96,7 +96,7 @@ class Cryocon(Base):
     def set_temperature(self, temperature, channel=None, turn_on=False):
         """ Function to set the temperature setpoint """
         channel = channel if channel is not None else self._main_channel
-        loop = 0 if channel == 'A' else 1
+        loop = 1 if channel == 'A' else 2
         self._socket.write('loop {}:setp {}'.format(loop, temperature))
         if turn_on:
             self.control()
@@ -128,7 +128,11 @@ class Cryocon(Base):
         @param delta: The error margin between the measured value and the setpoint to stop
         @param timeout: The maximum time to wait
         @return (bool): True if successful, False if timeout
+
+        Warning, this pausing function can be usefull but can also cause Qudi to not respond if executed from the
+        manager.
         """
+        self.set_temperature(temperature, turn_on=True)
         start_time = time.time()
         while time.time() - start_time < timeout:
             current_temperature = self.get_temperature()
