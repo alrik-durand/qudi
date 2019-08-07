@@ -192,6 +192,7 @@ class AndorCameraSpectrometer(Base, CameraInterface, SpectrometerInterface):
     _trigger_mode = _default_trigger_mode
     _scans = 1  # TODO get from camera
     _acquiring = False
+    _tracks = [None]
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -386,7 +387,7 @@ class AndorCameraSpectrometer(Base, CameraInterface, SpectrometerInterface):
 
         @return float: exposure gain
         """
-        _, self._gain = self._get_preamp_gain()
+        self._gain = self._get_preamp_gain()
         return self._gain
 
     def get_ready_state(self):
@@ -530,6 +531,57 @@ class AndorCameraSpectrometer(Base, CameraInterface, SpectrometerInterface):
         error_code = self._dll.SetPreAmpGain(index)
         return ERROR_DICT[error_code]
 
+    def _get_number_hs_speed(self, channel=0, typ=0):
+        """ Return the number of horizontal shift speed on a given channel
+
+        @param (int) channel: The AD channel (zero if only one)
+        @param (int) typ: output amplification (0 = electron multiplication, 1 = conventional)
+        @return (int): The number of horizontal shift speed available
+        """
+        channel = c_int(channel)
+        typ = c_int(typ)
+        speeds = c_int()
+        self._dll.GetNumberHSSpeeds(channel, typ, byref(speeds))
+        return speeds.value
+
+    def _get_hs_speed(self, channel=0, typ=0, index=0):
+        """ Return the speed associated with a given index in MHz
+
+        @param (int) channel: The AD channel (zero if only one)
+        @param (int) typ: output amplification (0 = electron multiplication, 1 = conventional)
+        @param (int) index: The index of the speed
+        @return (float): The speed in MHz
+
+        As your Andor system is capable of operating at more than one horizontal shift speed this function will
+         return the actual speeds available. The value returned is in MHz.
+        """
+        channel = c_int(channel)
+        typ = c_int(typ)
+        index = c_int(index)
+        speed = c_float()
+        self._dll.GetHSSpeed(channel, typ, index, byref(speed))
+        return speed.value
+
+    def _set_hs_speed(self, typ=0, index=0):
+        """ Set the horizontal shift speed based on a given index
+
+        @param (int) typ: output amplification (0 = electron multiplication, 1 = conventional)
+        @param (int) index: The index of the speed
+        return(bool): Sucess ?
+
+        This function will set the speed at which the pixels are shifted into the output node during the readout phase
+         of an acquisition. Typically your camera will be capable of operating at several horizontal shift speeds.
+        To get the actual speed that an index corresponds to use the GetHSSpeed function.
+        """
+        typ = c_int(typ)
+        index = c_int(index)
+        error_code = self._dll.SetHSSpeed(typ, index)
+        if ERROR_DICT[error_code] == 'DRV_SUCCESS':
+            return True
+        else:
+            self.log.error('Could not set the horizontal shift speed : {}'.format(ERROR_DICT[error_code]))
+            return False
+
     def _set_temperature(self, temp):
         if 20 > temp > self._max_cooling:
             self._temperature = temp
@@ -672,15 +724,18 @@ class AndorCameraSpectrometer(Base, CameraInterface, SpectrometerInterface):
         self._dll.GetNumberPreAmpGains(byref(n_gains))
         return n_gains.value
 
-    def _get_preamp_gain(self):
+    def _get_preamp_gain(self, index=0):
+        """ Get the gain associated with a given index
+
+        @return (float): The gain of the given index
+
+        Warning: This function does not give the current preamp gain. In fact no function does this. This module
+        has to keep track of the last sent value.
         """
-        Function returning
-        @return tuple (int1, int2): First int describing the gain setting, second value the actual gain
-        """
-        index = c_int()
+        index = c_int(index)
         gain = c_float()
         self._dll.GetPreAmpGain(index, byref(gain))
-        return index.value, gain.value
+        return gain.value
 
     def _get_temperature(self):
         temp = c_int()
@@ -713,8 +768,30 @@ class AndorCameraSpectrometer(Base, CameraInterface, SpectrometerInterface):
         pass_returns = ['DRV_SUCCESS', 'DRV_NO_NEW_DATA']
         if msg not in pass_returns:
             self.log.error('Can not retrieve number of new images {0}'.format(ERROR_DICT[error_code]))
-
         return first.value, last.value
+
+    def _set_single_track(self, centre, height):
+        centre = c_int(centre)
+        height = c_int(height)
+        error_code = self._dll.SetSingleTrack(centre, height)
+        msg = ERROR_DICT[error_code]
+        pass_returns = ['DRV_SUCCESS']
+        if msg not in pass_returns:
+            self.log.error('Can not set single track : {}'.format(msg))
+            return False
+        return True
+
+    def set_tracks(self, tracks):
+        if tracks is None:
+            self._tracks = []
+        else:
+            self._tracks = tracks
+
+        if len(self._tracks) == 1:
+            self._set_single_track(*self._tracks[0])
+
+        if len(self._tracks) > 1:
+            self.log.error('Multi track not supported yet')
 
     # not working properly (only for n_scans = 1)
     # def _get_images(self, first_img, last_img, n_scans):
@@ -791,11 +868,14 @@ class AndorCameraSpectrometer(Base, CameraInterface, SpectrometerInterface):
 
     def recordSpectrum(self):
         """ Record a spectrum and return it """
-        self._set_read_mode('FVB')
+        if len(self._tracks) == 0 and self._read_mode != 'FVB':
+            self._set_read_mode('FVB')
+        elif len(self._tracks) == 1 and self._read_mode != 'SINGLE_TRACK':
+            self._set_read_mode('SINGLE_TRACK')
+
         self._start_acquisition()
         data = self.get_acquired_data()
         return data
-
 
     def setExposure(self, exposureTime):
         """ SpectrometerInterface : set exposure in seconds """
