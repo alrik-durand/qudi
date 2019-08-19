@@ -110,7 +110,7 @@ class Task(InterruptableTask):
         param_grid.update(self.config['predefined_method_parameters'])
 
         self._list = self.grid(param_grid)
-        self._list_metadata = [{'elapsed_time': 0, 'elapsed_photon_count': 0, 'elapsed_sweeps': 0}]*len(self._list)
+        self._list_metadata = [{'elapsed_time': 0, 'elapsed_photon_count': 0, 'elapsed_sweeps': 0} for _ in self._list]
 
 
         duration_modes = ['same_time', 'same_photon_count', 'same_sweeps']
