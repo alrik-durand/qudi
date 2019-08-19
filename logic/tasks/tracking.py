@@ -40,7 +40,7 @@ class Task(InterruptableTask):
 
     def runTaskStep(self):
         """ Wait for refocus to finish. """
-        if time.time() - self._start_time > self._poi_manager.timer_duration:
+        if time.time() - self._start_time > self._poi_manager._refocus_period:
             self._task_logic.startTaskByName(self.config['refocus_task'])
             self._start_time = time.time()
         return True

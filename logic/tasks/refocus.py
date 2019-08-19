@@ -55,12 +55,12 @@ class Task(InterruptableTask):
         self._generator.load_ensemble('laser_on')
         self._measurement.set_measurement_settings(invoke_settings=False)
         self._measurement.start_pulsed_measurement()
-        self._poi_manager.optimise_poi(poikey=self._poi_manager._current_poi_key)
+        self._poi_manager.optimise_poi_position()
 
     def runTaskStep(self):
         """ Wait for refocus to finish. """
         time.sleep(0.1)
-        return self._poi_manager._optimizer_logic.module_state() != 'idle'
+        return self._poi_manager.optimiserlogic().module_state() != 'idle'
 
     def pauseTask(self):
         """ pausing a refocus is forbidden """
@@ -85,7 +85,7 @@ class Task(InterruptableTask):
 
     def checkExtraStartPrerequisites(self):
         """ Check whether anything we need is locked. """
-        return self._poi_manager._optimizer_logic.module_state() == 'idle'
+        return self._poi_manager.optimiserlogic().module_state() == 'idle'
 
     def checkExtraPausePrerequisites(self):
         """ pausing a refocus is forbidden """
