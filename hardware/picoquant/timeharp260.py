@@ -47,6 +47,7 @@ from core.interface import interface_method
 # which can be downloaded from the PicoQuant homepage.
 # =============================================================================
 
+
 class TimeHarp260(Base, SlowCounterInterface, FastCounterInterface):
     """ Hardware class to control the TimeHarp 260 from PicoQuant.
     """
@@ -945,7 +946,7 @@ class TimeHarp260(Base, SlowCounterInterface, FastCounterInterface):
         pass
 
     @get_constraints.register('SlowCounterInterface')
-    def get_constraints(self):
+    def get_constraints_slow(self):
         """ Get hardware limits
 
         @return SlowCounterConstraints: constraints class for slow counter
@@ -1077,7 +1078,7 @@ class TimeHarp260(Base, SlowCounterInterface, FastCounterInterface):
         return self._fast_bin_width_s, self._fast_record_length_s, self._fast_number_of_gates
 
     @get_constraints.register('FastCounterInterface')
-    def get_constraints(self):
+    def get_constraints_fast(self):
         """ Retrieve the hardware constrains of the Fast counting device
         for the fast_counter_interface.
 
