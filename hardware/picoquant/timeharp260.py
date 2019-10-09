@@ -25,13 +25,15 @@ import time
 from qtpy import QtCore
 import os
 
-from core.module import Base, ConfigOption
+from core.module import Base
+from core.configoption import ConfigOption
 from core.util.modules import get_main_dir
 from core.util.mutex import Mutex
 from interface.slow_counter_interface import SlowCounterInterface
 from interface.slow_counter_interface import SlowCounterConstraints
 from interface.slow_counter_interface import CountingMode
 from interface.fast_counter_interface import FastCounterInterface
+from core.interface import interface_method
 
 # =============================================================================
 # Wrapper around the TH260Lib64.DLL. The current file is based on the header files
@@ -937,6 +939,12 @@ class TimeHarp260(Base, SlowCounterInterface, FastCounterInterface):
         """
         return ['Ctr0']
 
+    @interface_method
+    def get_constraints(self):
+        """ Useless function becaused I did not understand registers """
+        pass
+
+    @get_constraints.register('SlowCounterInterface')
     def get_constraints(self):
         """ Get hardware limits
 
@@ -1068,7 +1076,8 @@ class TimeHarp260(Base, SlowCounterInterface, FastCounterInterface):
 
         return self._fast_bin_width_s, self._fast_record_length_s, self._fast_number_of_gates
 
-    def get_constraints_FastCounterInterface(self):
+    @get_constraints.register('FastCounterInterface')
+    def get_constraints(self):
         """ Retrieve the hardware constrains of the Fast counting device
         for the fast_counter_interface.
 
