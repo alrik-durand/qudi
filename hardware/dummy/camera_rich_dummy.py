@@ -1,80 +1,92 @@
 # -*- coding: utf-8 -*-
-
 """
-Note pour le groupe de dév. au L2C :
-l'ensemble des fonctions de camera_interface.py a été repris ici.
-d'autres fonctions correspondant à une camera science ont été ajoutées
+This file contains the Qudi hardware dummy for camera rich interface.
+
+Qudi is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Qudi is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Qudi. If not, see <http://www.gnu.org/licenses/>.
+
+Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
+top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
 """
 
-from core.interface import abstract_interface_method
-from core.meta import InterfaceMetaclass
+import numpy as np
+
+from core.module import Base
+from core.configoption import ConfigOption
+from interface.camera_rich_interface import CameraRichInterface
 
 
-class CameraRichInterface(metaclass=InterfaceMetaclass):
-    """ This is the Interface class to define the controls for the simple
-    optical spectrometer.
+class CameraRichDummy(Base, CameraRichInterface):
+    """ Dummy hardware class to emulate a rich camera
+
+    Example config for copy-paste:
+
+    camera_rich_dummy:
+        module.Class: 'dummy.camera_rich_dummy.CameraRichDummy'
+
     """
+    _width = ConfigOption('width', 1024)
+    _height = ConfigOption('height', 256)
+    _exposure = 1
+    _temperature = 20
+    _readout_rate = 1e6
 
-    @abstract_interface_method
-    def get_camera_constraints(self):
-        """
-        Note pour moi :
-        detailler ici toutes les clés de lecture des contraintes
-        les contraintes doivent permettre de répondre à la question : qu'est ce que tu supportes
-        Par exemple : est ce que tu supportes le mode multi_spec ?
-        est-ce que tu supportes un gain reglable ? et dans quelle gamme...
-        """
+    def on_activate(self):
+        """ Initialisation performed during activation of the module. """
         pass
 
-    @abstract_interface_method
+    def on_deactivate(self):
+        """ Deinitialisation performed during deactivation of the module. """
+        pass
+
+    def get_camera_constraints(self):
+        """ Return the constrains of the physical hardware."""
+        constraints = dict()
+        constraints['readout_rates'] = [1e3, 1e6]
+
+        return constraints
+
     def get_name(self):
         """ Retrieve an identifier of the camera that the GUI can print
 
         @return string: name for the camera
         """
-        pass
+        return 'Dummy fancy camera 3000'
 
-    @abstract_interface_method
     def get_size(self):
         """ Retrieve size of the image in pixel
 
         @return tuple: Size (width, height)
         """
-        pass
+        return self._width, self._height
 
-    @abstract_interface_method
-    def support_live_acquisition(self):
-        """ Return whether or not the camera can take care of live acquisition
-
-        @return bool: True if supported, False if not
-        """
-        pass
-
-    @abstract_interface_method
-    def start_live_acquisition(self):
-        """ Start a continuous acquisition
-
-        @return bool: Success ?
-        """
-        pass
-
-    @abstract_interface_method
-    def start_single_acquisition(self):
+    def start_acquisition(self):
         """ Start a single acquisition
 
         @return bool: Success ?
         """
-        pass
+        self.run()
+        self.stop()
+        return True
 
-    @abstract_interface_method
     def stop_acquisition(self):
-        """ Stop/abort live or single acquisition
+        """ Stop/abort acquisition
 
         @return bool: Success ?
         """
-        pass
+        self.stop()
+        return True
 
-    @abstract_interface_method
     def set_exposure(self, exposure):
         """ Set the exposure time in seconds
 
@@ -82,21 +94,22 @@ class CameraRichInterface(metaclass=InterfaceMetaclass):
 
         @return float: setted new exposure time
         """
-        pass
+        self._exposure = exposure
+        return self._exposure
 
-    @abstract_interface_method
     def set_readout_rate(self, readout_rate):
-        pass
+        """ Set the readout rate of the camera """
+        if readout_rate in self.get_camera_constraints()['readout_rates']:
+            self._readout_rate = readout_rate
+        return self._readout_rate
 
-    @abstract_interface_method
     def set_temperature(self, temperature):
-        pass
+        """ Set the temperature setpoint """
+        self._temperature = temperature
 
-    @abstract_interface_method
     def set_obtu_behaviour(self, obtu_behaviour):
         pass
 
-    @abstract_interface_method
     def set_gain(self, gain):
         """ Set the gain
 
@@ -106,33 +119,26 @@ class CameraRichInterface(metaclass=InterfaceMetaclass):
         """
         pass
 
-    @abstract_interface_method
     def set_acquisition_mode(self, acquisition_mode):
         pass
 
-    @abstract_interface_method
     def set_binning_x(self, bin_x):
         pass
 
-    @abstract_interface_method
     def set_binning_y(self, bin_y):
         pass
 
-    @abstract_interface_method
     def set_region_of_interest(self, x1, y1, x2, y2):
         pass
 
-    @abstract_interface_method
     def set_multi_spec(self, ):
         pass
 
-    @abstract_interface_method
     def set_background_mode(self, bg_mode):
         pass
 
-###############################################
+    ###############################################
 
-    @abstract_interface_method
     def get_exposure(self):
         """ Get the exposure time in seconds
 
@@ -140,19 +146,15 @@ class CameraRichInterface(metaclass=InterfaceMetaclass):
         """
         pass
 
-    @abstract_interface_method
     def get_readout_rate(self, readout_rate):
         pass
 
-    @abstract_interface_method
     def get_temperature(self, temperature):
         pass
 
-    @abstract_interface_method
     def get_obtu_behaviour(self, obtu_behaviour):
         pass
 
-    @abstract_interface_method
     def get_gain(self):
         """ Get the gain
 
@@ -160,35 +162,27 @@ class CameraRichInterface(metaclass=InterfaceMetaclass):
         """
         pass
 
-    @abstract_interface_method
     def get_acquisition_mode(self, acquisition_mode):
         pass
 
-    @abstract_interface_method
     def get_binning_x(self, bin_x):
         pass
 
-    @abstract_interface_method
     def get_binning_y(self, bin_y):
         pass
 
-    @abstract_interface_method
     def get_region_of_interest(self, x1, y1, x2, y2):
         pass
 
-    @abstract_interface_method
     def get_multi_spec(self, ):
         pass
 
-    @abstract_interface_method
     def get_background_mode(self, bg_mode):
         pass
 
-    @abstract_interface_method
     def get_camera_status(self, spectrometer_status):
         pass
 
-    @abstract_interface_method
     def get_acquired_data(self):
         """ Return an array of last acquired image.
 
@@ -198,11 +192,12 @@ class CameraRichInterface(metaclass=InterfaceMetaclass):
         """
         pass
 
-    @abstract_interface_method
     def get_ready_state(self):
         """ Is the camera ready for an acquisition ?
 
         @return bool: ready ?
         """
-        pass
+        return self.module_state() == 'idle'
+
+
 
