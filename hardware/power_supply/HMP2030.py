@@ -54,7 +54,7 @@ class PowerSupply(Base, ProcessControlInterface):
         except visa.VisaIOError:
             self.log.error('Could not connect to hardware. Please check the wires and the address.')
 
-        self._model = self._query('*IDN?').split(',')[1]
+        self._model = self._inst.query('*IDN?').split(',')[1]
         self.log.info('Connected to {}.'.format(self._model))
 
         self._set_over_voltage(self._voltage_max_1, 1)
@@ -64,6 +64,8 @@ class PowerSupply(Base, ProcessControlInterface):
         self._set_over_voltage(self._voltage_max_3, 3)
         self._set_over_current(self._current_max_3, 3)
         self._set_channel(1)
+        self._set_voltage(0)
+        self._set_on()
 
     def on_deactivate(self):
         """ Stops the module """
@@ -94,7 +96,7 @@ class PowerSupply(Base, ProcessControlInterface):
             self._set_channel(channel)
         mini, maxi = self.get_control_limit(channel=channel)
         if mini <= value <= maxi:
-            self._write("VOLT {}".format(value))
+            self._inst.write("VOLT {}".format(value))
         else:
             self.log.error('Voltage value {} out of range'.format(value))
     
@@ -110,7 +112,7 @@ class PowerSupply(Base, ProcessControlInterface):
 
         mini, maxi = self._get_control_limit_current(channel=channel)
         if mini <= value <= maxi:
-            self._write("CURR {}".format(value))
+            self._inst.write("CURR {}".format(value))
         else:
             self.log.error('Current value {} out of range'.format(value))
     
@@ -178,7 +180,7 @@ class PowerSupply(Base, ProcessControlInterface):
             self._set_channel(channel)
         mini, maxi = self.get_control_limit(channel)
         if mini <= value <= maxi:
-            self._write("VOLT {}".format(value))
+            self._inst.write("VOLT {}".format(value))
         else:
             self.log.error('Voltage value {} out of range'.format(value))
 
@@ -187,7 +189,7 @@ class PowerSupply(Base, ProcessControlInterface):
 
             @return float: current control value
         """
-        return float(self._query("VOLT?").split('\r')[0])
+        return float(self._inst.query("VOLT?").split('\r')[0])
 
     def get_control_unit(self):
         """ Get unit of control value.
