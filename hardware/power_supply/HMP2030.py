@@ -210,3 +210,11 @@ class PowerSupply(Base, ProcessControlInterface):
         maxi = self._voltage_max_2 if channel == 2 else maxi
         maxi = self._voltage_max_3 if channel == 3 else maxi
         return 0, maxi
+
+    def process_control_supports_multiple_channels(self):
+        """ Function to test if hardware support multiple channels """
+        return True
+
+    def process_control_get_number_channels(self):
+        """ Function to get the number of channels available for control """
+        return 3
