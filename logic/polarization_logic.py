@@ -28,7 +28,7 @@ from core.configoption import ConfigOption
 from qtpy import QtCore
 
 
-class PolarizationDepLogic(GenericLogic):
+class PolarizationLogic(GenericLogic):
     """This logic module rotates polarization and records signal as a function of angle.
 
     """
@@ -47,10 +47,13 @@ class PolarizationDepLogic(GenericLogic):
 
     _resolution = StatusVar('resolution', 90)
     _time_per_point = StatusVar('time_per_point', 1)
+    _background_value = StatusVar('background_value', 0)
+    _background_time = StatusVar('background_value', 5)
 
     _x_axis = []
     _y_axis = []
     _y2_axis = []
+    _current_index = 0
 
     sigDataUpdated = QtCore.Signal()
     sigStateChanged = QtCore.Signal()
@@ -106,10 +109,32 @@ class PolarizationDepLogic(GenericLogic):
     def time_per_point(self, value):
         counter_time_per_point = 1/self.counterlogic.get_count_frequency()
         if counter_time_per_point != 0 and value % counter_time_per_point != 0:
-            self.log.warning('Polarization measurement time per point must be a multiple of counting logic resolution.')
+            self.log.warning('Polarization measurement time per point must be a multiple of counting resolution.')
         else:
             if self.module_state() != 'locked':
                 self._time_per_point = value
+
+    @property
+    def background_value(self):
+        return self._background_value
+
+    @background_value.setter
+    def background_value(self, value):
+        if value > 0:
+            self._background_value = value
+            self.sigDataUpdated.emit()
+
+    @property
+    def background_time(self):
+        return self._background_time
+
+    @background_time.setter
+    def background_time(self, value):
+        counter_time_per_point = 1 / self.counterlogic.get_count_frequency()
+        if value == 0 and value % counter_time_per_point != 0:
+            self.log.warning('Polarization background measurement time must be a multiple of counting resolution.')
+        else:
+            self._background_time = value
 
     def reset_motor(self, wait=False):
         """ Reset the motor to its origin
@@ -128,20 +153,23 @@ class PolarizationDepLogic(GenericLogic):
         self.module_state.lock()
         self.sigStateChanged.emit()
         self._x_axis = np.linspace(start=0, stop=180, num=self.resolution)
-        self._y_axis = np.zeroes(self.resolution)
-        if self.secondary_channel is not None:
-            self._y2_axis = np.zeroes(self.resolution)
+        self._y_axis = np.full(self.resolution, np.nan)
+        if self.use_secondary_channel:
+            self._y2_axis = np.full(self.resolution, np.nan)
         self.sigDataUpdated.emit()
         self.reset_motor(wait=True)
         bin_per_step = int(self.counterlogic().get_count_frequency() * self.time_per_point)
 
         for i, x in enumerate(self._x_axis):
+            self._current_index = i
             move_time = self.set_motor_position(x)
             time.sleep(move_time)
             time.sleep(self.time_per_point)
             self._y_axis[i] = self.counterlogic().countdata[self.main_channel, -bin_per_step:-1].sum()
-            if self.secondary_channel is not None:
+            self._y_axis[i] /= self.time_per_point
+            if self.use_secondary_channel:
                 self._y2_axis[i] = self.counterlogic().countdata[self.secondary_channel, -bin_per_step:-1].sum()
+                self._y2_axis[i] /= self.time_per_point
             if self._stop_requested:
                 break
             self.sigDataUpdated.emit()
@@ -155,3 +183,26 @@ class PolarizationDepLogic(GenericLogic):
         """ Abort the acquisition in progress - the motor will reset to zero """
         if self.module_state() == 'locked':
             self._stop_requested = True
+
+    def take_background(self, duration=None):
+        """ Measure signal for a given time and save it as new background value """
+        if self.module_state() == 'locked':
+            return
+        duration = duration if duration is not None else self.background_time
+        self.module_state.lock()
+        self.sigStateChanged.emit()
+        bin_number = int(self.counterlogic().get_count_frequency() * duration)
+        real_duration = bin_number*(1/self.counterlogic().get_count_frequency())
+        time.sleep(real_duration)
+        signal = self.counterlogic().countdata[self.main_channel, -bin_number:-1].sum()
+        self.background_value = signal / real_duration
+        self.module_state.unlock()
+        self.sigStateChanged.emit()
+
+    @property
+    def use_secondary_channel(self):
+        return self.secondary_channel is not None
+
+    def get_data(self):
+        """ Return current data from the last measurement"""
+        return self._x_axis, self._y_axis-self.background_value, self._y2_axis-self.background_value
