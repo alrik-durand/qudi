@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-This file contains the Qudi logic class for performing polarisation dependence measurements.
+This file contains the Qudi logic class for performing polarization dependence measurements.
 
 Qudi is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -28,8 +28,8 @@ from core.configoption import ConfigOption
 from qtpy import QtCore
 
 
-class PolarisationDepLogic(GenericLogic):
-    """This logic module rotates polarisation and records signal as a function of angle.
+class PolarizationDepLogic(GenericLogic):
+    """This logic module rotates polarization and records signal as a function of angle.
 
     """
 
@@ -106,7 +106,7 @@ class PolarisationDepLogic(GenericLogic):
     def time_per_point(self, value):
         counter_time_per_point = 1/self.counterlogic.get_count_frequency()
         if counter_time_per_point != 0 and value % counter_time_per_point != 0:
-            self.log.warning('Polarisation measurement time per point must be a multiple of counting logic resolution.')
+            self.log.warning('Polarization measurement time per point must be a multiple of counting logic resolution.')
         else:
             if self.module_state() != 'locked':
                 self._time_per_point = value
@@ -121,7 +121,7 @@ class PolarisationDepLogic(GenericLogic):
             time.sleep(reset_time)
 
     def run(self):
-        """ Runs a polarisation measurement """
+        """ Runs a polarization measurement """
         if self.counterlogic().module_state() == 'idle':
             self.counterlogic().startCount()
         self._stop_requested = False
