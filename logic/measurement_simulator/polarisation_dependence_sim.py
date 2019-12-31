@@ -77,18 +77,16 @@ class PolarizationDependenceSim(Base, SlowCounterInterface, MotorInterface):
         return self._counter_hw.get_constraints()
 
     def set_up_counter(self,
-                       counter_channel=None,
-                       photon_source=None,
-                       counter_channel2=None,
-                       photon_source2=None,
-                       clock_channel=None):
+                       counter_channels=None,
+                       sources=None,
+                       clock_channel=None,
+                       counter_buffer=None):
         """ Direct pass-through to the counter hardware module
         """
-        return self._counter_hw.set_up_counter(counter_channel=counter_channel,
-                                        photon_source=photon_source,
-                                        counter_channel2=counter_channel2,
-                                        photon_source2=photon_source2,
-                                        clock_channel=clock_channel)
+        return self._counter_hw.set_up_counter(counter_channels=counter_channels,
+                                        sources=sources,
+                                        clock_channel=clock_channel,
+                                        counter_buffer=counter_buffer)
 
     def get_counter(self, samples=None):
         """ Direct pass-through to the counter hardware module
@@ -109,6 +107,9 @@ class PolarizationDependenceSim(Base, SlowCounterInterface, MotorInterface):
         """ Direct pass-through to the counter hardware module
         """
         return self._counter_hw.close_clock(power=power)
+
+    def get_counter_channels(self):
+        return ['Dummy 007']
 
     # Satisfy the motor interface
 

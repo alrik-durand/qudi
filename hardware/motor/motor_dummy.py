@@ -474,9 +474,9 @@ class MotorDummy(Base, MotorInterface):
                 vel[self._phi_axis.label] = self._phi_axis.vel
 
         else:
-            vel[self._x_axis.label] = self._x_axis.get_vel
-            vel[self._y_axis.label] = self._y_axis.get_vel
-            vel[self._z_axis.label] = self._z_axis.get_vel
+            vel[self._x_axis.label] = self._x_axis.vel
+            vel[self._y_axis.label] = self._y_axis.vel
+            vel[self._z_axis.label] = self._z_axis.vel
             vel[self._phi_axis.label] = self._phi_axis.vel
 
         return vel
