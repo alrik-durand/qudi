@@ -78,6 +78,8 @@ class Gui(GUIBase):
         self._mw.background_time_doubleSpinBox.editingFinished.connect(self.background_parameters_changed)
         self._mw.background_doubleSpinBox.editingFinished.connect(self.background_parameters_changed)
 
+        self._mw.measure_background_pushButton.clicked.connect(self.logic().take_background)
+
         # Handling signals from the logic
         self.logic().sigDataUpdated.connect(self.update_data)
         self.logic().sigStateChanged.connect(self.update_module_state)
@@ -104,6 +106,8 @@ class Gui(GUIBase):
         self._mw.background_time_doubleSpinBox.editingFinished.disconnect()
         self._mw.background_doubleSpinBox.editingFinished.disconnect()
 
+        self._mw.measure_background_pushButton.clicked.disconnect()
+
         self.logic().sigDataUpdated.disconnect()
         self.logic().sigStateChanged.disconnect()
         self.logic().sigMeasurementParametersChanged.disconnect()
@@ -114,6 +118,7 @@ class Gui(GUIBase):
     def init_plot(self):
         """ Draw the polar plot at activation """
         self._mw.plotWidget.setLabel('left', 'Fluorescence', units='counts/s')
+        self._mw.plotWidget.setLabel('bottom', 'Fluorescence', units='counts/s')
         self._mw.plotWidget.setAspectLocked()
         self._mw.plotWidget.addLine(x=0, pen=0.2)
         self._mw.plotWidget.addLine(y=0, pen=0.2)
@@ -129,7 +134,10 @@ class Gui(GUIBase):
         #
         # self._pw.setLabel('bottom', 'Angle', units='')
 
-        self.main_curve = pg.PlotDataItem(pen=pg.mkPen(palette.c1), symbol=None)
+        self.main_curve = pg.PlotDataItem(pen=pg.mkPen(palette.c1), symbol='o',
+                                          symbolPen=palette.c1,
+                                          symbolBrush=palette.c1,
+                                          symbolSize=7)
         self._mw.plotWidget.addItem(self.main_curve)
         if self.logic().use_secondary_channel:
             self.secondary_curve = pg.PlotDataItem(pen=pg.mkPen(palette.c2), symbol=None)
@@ -138,7 +146,7 @@ class Gui(GUIBase):
         """ The function that grabs the data and sends it to the plot. """
         theta, r, r2 = self.logic().get_data()
 
-        theta = theta/190*np.pi
+        theta = theta/180*np.pi
         theta = theta*2  # Half wave plate
 
         x = r * np.cos(theta)
@@ -147,8 +155,8 @@ class Gui(GUIBase):
         x = x[~np.isnan(y)]
         y = y[~np.isnan(y)]
 
-        # plot.plot(x, y)
-        self.main_curve.setData(x=x, y=y)
+        if len(y) > 0:
+            self.main_curve.setData(x=x, y=y)
 
     def update_module_state(self):
         """ Enable and disable buttons and editing when logic module state changes"""

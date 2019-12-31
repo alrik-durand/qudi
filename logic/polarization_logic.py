@@ -196,17 +196,19 @@ class PolarizationLogic(GenericLogic):
         if self.module_state() == 'locked':
             self._stop_requested = True
 
-    def take_background(self, duration=None):
+    def take_background(self, *args, duration=None):
         """ Measure signal for a given time and save it as new background value """
         if self.module_state() == 'locked':
             return
+        if self.counterlogic().module_state() == 'idle':
+            self.counterlogic().startCount()
         duration = duration if duration is not None else self.background_time
         self.module_state.lock()
         self.sigStateChanged.emit()
         bin_number = int(self.counterlogic().get_count_frequency() * duration)
         real_duration = bin_number*(1/self.counterlogic().get_count_frequency())
         time.sleep(real_duration)
-        signal = self.counterlogic().countdata[self.main_channel, -bin_number:-1].sum()
+        signal = float(self.counterlogic().countdata[self.main_channel, -bin_number:-1].sum())
         self.background_value = signal / real_duration
         self.module_state.unlock()
         self.sigStateChanged.emit()
