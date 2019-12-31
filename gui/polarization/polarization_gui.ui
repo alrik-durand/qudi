@@ -42,15 +42,22 @@
    <widget class="QWidget" name="dockWidgetContents">
     <layout class="QVBoxLayout" name="verticalLayout">
      <item>
-      <layout class="QHBoxLayout" name="horizontalLayout_4"/>
-     </item>
-     <item>
-      <widget class="PlotWidget" name="plotWidget"/>
+      <layout class="QHBoxLayout" name="horizontalLayout_4">
+       <item>
+        <widget class="PlotWidget" name="plotWidget"/>
+       </item>
+      </layout>
      </item>
     </layout>
    </widget>
   </widget>
   <widget class="QDockWidget" name="parameters_QDockWidget">
+   <property name="minimumSize">
+    <size>
+     <width>610</width>
+     <height>70</height>
+    </size>
+   </property>
    <property name="maximumSize">
     <size>
      <width>524287</width>
@@ -73,7 +80,7 @@
       </widget>
      </item>
      <item>
-      <widget class="QSpinBox" name="resolution_SpinBox">
+      <widget class="ScienSpinBox" name="resolution_SpinBox">
        <property name="minimum">
         <number>1</number>
        </property>
@@ -93,9 +100,12 @@
        <property name="orientation">
         <enum>Qt::Horizontal</enum>
        </property>
+       <property name="sizeType">
+        <enum>QSizePolicy::Fixed</enum>
+       </property>
        <property name="sizeHint" stdset="0">
         <size>
-         <width>40</width>
+         <width>200</width>
          <height>20</height>
         </size>
        </property>
@@ -109,21 +119,9 @@
       </widget>
      </item>
      <item>
-      <widget class="QSpinBox" name="time_per_point_SpinBox">
+      <widget class="ScienDSpinBox" name="time_per_point_SpinBox">
        <property name="suffix">
         <string>s</string>
-       </property>
-       <property name="minimum">
-        <number>0</number>
-       </property>
-       <property name="maximum">
-        <number>1000000</number>
-       </property>
-       <property name="singleStep">
-        <number>10</number>
-       </property>
-       <property name="value">
-        <number>1</number>
        </property>
       </widget>
      </item>
@@ -148,6 +146,12 @@
    <addaction name="actionSave"/>
   </widget>
   <widget class="QDockWidget" name="background_dockWidget">
+   <property name="minimumSize">
+    <size>
+     <width>400</width>
+     <height>90</height>
+    </size>
+   </property>
    <property name="windowTitle">
     <string>Background</string>
    </property>
@@ -187,6 +191,9 @@
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
         </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Fixed</enum>
+        </property>
         <property name="sizeHint" stdset="0">
          <size>
           <width>40</width>
@@ -200,10 +207,19 @@
         <property name="text">
          <string>Take from measurement</string>
         </property>
+        <property name="checkable">
+         <bool>false</bool>
+        </property>
        </widget>
       </item>
       <item>
        <widget class="QLabel" name="for_label">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
         <property name="text">
          <string>For</string>
         </property>
@@ -298,7 +314,7 @@
   </widget>
   <action name="stop_Action">
    <property name="checkable">
-    <bool>true</bool>
+    <bool>false</bool>
    </property>
    <property name="icon">
     <iconset>
@@ -313,7 +329,7 @@
   </action>
   <action name="run_Action">
    <property name="checkable">
-    <bool>true</bool>
+    <bool>false</bool>
    </property>
    <property name="icon">
     <iconset>
@@ -352,6 +368,11 @@
   <customwidget>
    <class>ScienDSpinBox</class>
    <extends>QDoubleSpinBox</extends>
+   <header>qtwidgets.scientific_spinbox.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ScienSpinBox</class>
+   <extends>QSpinBox</extends>
    <header>qtwidgets.scientific_spinbox.h</header>
   </customwidget>
   <customwidget>

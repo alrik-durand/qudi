@@ -37,6 +37,7 @@ class PolarizationLogic(GenericLogic):
     counterlogic = Connector(interface='CounterLogic')
     savelogic = Connector(interface='SaveLogic')
     motor = Connector(interface='MotorInterface')
+
     motor_axis = ConfigOption(name='motor_axis', default='phi')
 
     main_channel = ConfigOption(name='main_channel', default=0)
@@ -48,29 +49,32 @@ class PolarizationLogic(GenericLogic):
     _resolution = StatusVar('resolution', 90)
     _time_per_point = StatusVar('time_per_point', 1)
     _background_value = StatusVar('background_value', 0)
-    _background_time = StatusVar('background_value', 5)
+    _background_time = StatusVar('background_time', 5)
 
-    _x_axis = []
-    _y_axis = []
-    _y2_axis = []
+    _x_axis = np.array([])
+    _y_axis = np.array([])
+    _y2_axis = np.array([])
     _current_index = 0
 
     sigDataUpdated = QtCore.Signal()
     sigStateChanged = QtCore.Signal()
+    sigMeasurementParametersChanged = QtCore.Signal()
+    sigBackgroundParametersChanged = QtCore.Signal()
+
     _stop_requested = False
 
     def on_activate(self):
         """ Initialisation performed during activation of the module. """
         # Connect signals
-        self.counterlogic().sigCountStatusChanged(self.abort, QtCore.Qt.DirectConnection)
+        self.counterlogic().sigCountStatusChanged.connect(self.abort, QtCore.Qt.DirectConnection)
 
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module. """
-        return
+        self.counterlogic().sigCountStatusChanged.disconnect()
 
     @property
     def motor_constraints(self):
-        return self.motor().get_contraints()[self.motor_axis]
+        return self.motor().get_constraints()[self.motor_axis]
 
     @property
     def motor_velocity(self):
@@ -78,7 +82,7 @@ class PolarizationLogic(GenericLogic):
 
     @property
     def motor_position(self):
-        return self.motor().get_position()[self.motor_axis]
+        return self.motor().get_pos()[self.motor_axis]
 
     def set_motor_position(self, value):
         """ Set the motor to a given position
@@ -87,19 +91,22 @@ class PolarizationLogic(GenericLogic):
 
         @return (float): Time (in second) needed to get to this position
         """
-        if self.motor_constraints['pos_mim'] < value < self.motor_constraints['pos_max']:
+        if self.motor_constraints['pos_min'] < value < self.motor_constraints['pos_max']:
             previous_position = self.motor_position
             self.motor().move_abs({self.motor_axis: value})
             return abs((previous_position-value)/self.motor_velocity)
+        else:
+            return 0
 
     @property
     def resolution(self):
-        return self.resolution
+        return self._resolution
 
     @resolution.setter
     def resolution(self, value):
-        if value > 0 and self.module_state() != 'locked':
-            self.resolution = int(value)
+        if 0 < value != self._resolution and self.module_state() != 'locked':
+            self._resolution = int(value)
+            self.sigMeasurementParametersChanged.emit()
 
     @property
     def time_per_point(self):
@@ -107,12 +114,14 @@ class PolarizationLogic(GenericLogic):
 
     @time_per_point.setter
     def time_per_point(self, value):
-        counter_time_per_point = 1/self.counterlogic.get_count_frequency()
-        if counter_time_per_point != 0 and value % counter_time_per_point != 0:
-            self.log.warning('Polarization measurement time per point must be a multiple of counting resolution.')
+        counter_time_per_point = 1/self.counterlogic().get_count_frequency()
+        if value == 0 or not np.isclose(int(value/counter_time_per_point), value/counter_time_per_point):
+            self.log.warning('Polarization measurement time per point must be a multiple of counting resolution')
+            self.sigMeasurementParametersChanged.emit()
         else:
-            if self.module_state() != 'locked':
+            if self.module_state() != 'locked' and self._time_per_point != value:
                 self._time_per_point = value
+                self.sigMeasurementParametersChanged.emit()
 
     @property
     def background_value(self):
@@ -120,8 +129,9 @@ class PolarizationLogic(GenericLogic):
 
     @background_value.setter
     def background_value(self, value):
-        if value > 0:
+        if 0 <= value != self._background_value:
             self._background_value = value
+            self.sigBackgroundParametersChanged.emit()
             self.sigDataUpdated.emit()
 
     @property
@@ -130,11 +140,13 @@ class PolarizationLogic(GenericLogic):
 
     @background_time.setter
     def background_time(self, value):
-        counter_time_per_point = 1 / self.counterlogic.get_count_frequency()
-        if value == 0 and value % counter_time_per_point != 0:
+        counter_time_per_point = 1 / self.counterlogic().get_count_frequency()
+        if value == 0 or not np.isclose(int(value/counter_time_per_point), value/counter_time_per_point):
             self.log.warning('Polarization background measurement time must be a multiple of counting resolution.')
-        else:
+            self.sigBackgroundParametersChanged.emit()
+        elif self._background_time != value:
             self._background_time = value
+            self.sigBackgroundParametersChanged.emit()
 
     def reset_motor(self, wait=False):
         """ Reset the motor to its origin
@@ -206,3 +218,6 @@ class PolarizationLogic(GenericLogic):
     def get_data(self):
         """ Return current data from the last measurement"""
         return self._x_axis, self._y_axis-self.background_value, self._y2_axis-self.background_value
+
+    def save(self):
+        pass
