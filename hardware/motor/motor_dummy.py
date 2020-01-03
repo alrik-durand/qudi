@@ -75,7 +75,7 @@ class MotorDummy(Base, MotorInterface):
         self._x_axis.vel = 1.0
         self._y_axis.vel = 1.0
         self._z_axis.vel = 1.0
-        self._phi_axis.vel = 10.0
+        self._phi_axis.vel = 100.0
 
         self._x_axis.status = 0
         self._y_axis.status = 0
@@ -156,7 +156,7 @@ class MotorDummy(Base, MotorInterface):
                  'pos_max': 360,
                  'pos_step': 0.1,
                  'vel_min': 1,
-                 'vel_max': 20,
+                 'vel_max': 100,
                  'vel_step': 0.1,
                  'acc_min': None,
                  'acc_max': None,
