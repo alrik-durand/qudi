@@ -11,11 +11,9 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>qudi: Slow Counter</string>
+   <string>qudi: Polarization measurement</string>
   </property>
-  <widget class="QWidget" name="centralwidget">
-   <zorder>plotWidget</zorder>
-  </widget>
+  <widget class="QWidget" name="centralwidget"/>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
@@ -25,6 +23,25 @@
      <height>25</height>
     </rect>
    </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuView">
+    <property name="title">
+     <string>View</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuOptions">
+    <property name="title">
+     <string>Options</string>
+    </property>
+    <addaction name="actionFit_settings"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuView"/>
+   <addaction name="menuOptions"/>
   </widget>
   <widget class="QDockWidget" name="plot_DockWidget">
    <property name="sizePolicy">
@@ -249,8 +266,8 @@
       <rect>
        <x>0</x>
        <y>0</y>
-       <width>311</width>
-       <height>261</height>
+       <width>261</width>
+       <height>211</height>
       </rect>
      </property>
      <layout class="QGridLayout" name="gridLayout_29">
@@ -271,7 +288,7 @@
        </widget>
       </item>
       <item row="0" column="0">
-       <widget class="QPushButton" name="fit_param_PushButton">
+       <widget class="QPushButton" name="do_fit_PushButton">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
           <horstretch>0</horstretch>
@@ -361,6 +378,11 @@
    </property>
    <property name="toolTip">
     <string>Save</string>
+   </property>
+  </action>
+  <action name="actionFit_settings">
+   <property name="text">
+    <string>Fit settings</string>
    </property>
   </action>
  </widget>

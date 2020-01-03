@@ -25,11 +25,13 @@ import os
 import pyqtgraph as pg
 
 from core.connector import Connector
+from core.util import units
 from gui.colordefs import QudiPalettePale as palette
 from gui.guibase import GUIBase
 from qtpy import QtCore
 from qtpy import QtWidgets
 from qtpy import uic
+from gui.fitsettings import FitSettingsDialog
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -55,6 +57,7 @@ class Gui(GUIBase):
     _mw = None
     main_curve = None
     secondary_curve = None
+    _fsd = None
 
     def on_activate(self):
 
@@ -82,9 +85,17 @@ class Gui(GUIBase):
 
         # Handling signals from the logic
         self.logic().sigDataUpdated.connect(self.update_data)
+        self.logic().sigFitUpdated.connect(self.update_fit)
         self.logic().sigStateChanged.connect(self.update_module_state)
         self.logic().sigMeasurementParametersChanged.connect(self.fill_measurement_parameters)
         self.logic().sigBackgroundParametersChanged.connect(self.fill_background_parameters)
+
+        # Fit settings dialog
+        self._fsd = FitSettingsDialog(self.logic().fc)
+        self._fsd.sigFitsUpdated.connect(self._mw.fit_param_fit_func_ComboBox.setFitFunctions)
+        self._fsd.applySettings()
+        self._mw.actionFit_settings.triggered.connect(self._fsd.show)
+        self._mw.do_fit_PushButton.clicked.connect(self.do_fit)
 
     def show(self):
         """Make window visible and put it above all other windows.
@@ -109,9 +120,14 @@ class Gui(GUIBase):
         self._mw.measure_background_pushButton.clicked.disconnect()
 
         self.logic().sigDataUpdated.disconnect()
+        self.logic().sigFitUpdated.disconnect()
         self.logic().sigStateChanged.disconnect()
         self.logic().sigMeasurementParametersChanged.disconnect()
         self.logic().sigBackgroundParametersChanged.disconnect()
+
+        self._fsd.sigFitsUpdated.disconnect()
+        self._mw.actionFit_settings.triggered.disconnect()
+        self._mw.do_fit_PushButton.clicked.disconnect()
 
         self._mw.close()
 
@@ -142,27 +158,38 @@ class Gui(GUIBase):
         if self.logic().use_secondary_channel:
             self.secondary_curve = pg.PlotDataItem(pen=pg.mkPen(palette.c2), symbol=None)
 
+        self.fit_curve = pg.PlotDataItem(pen=pg.mkPen(palette.c3))
+        self._mw.plotWidget.addItem(self.fit_curve)
+
     def update_data(self):
         """ The function that grabs the data and sends it to the plot. """
-        theta, r, r2 = self.logic().get_data()
-
-        theta = theta/180*np.pi
-        theta = theta*2  # Half wave plate
-
+        theta, r, r2 = self.logic().get_data(unit='radian')
         x = r * np.cos(theta)
         y = r * np.sin(theta)
-
-        x = x[~np.isnan(y)]
-        y = y[~np.isnan(y)]
-
         if len(y) > 0:
             self.main_curve.setData(x=x, y=y)
+
+    def update_fit(self):
+        """ Function that grabs the fit result and plot it """
+        if self.logic().fit_curve is None or self.logic().fit_result is None:
+            self.fit_curve.setData(x=[], y=[])
+            return
+
+        if hasattr(self.logic().fit_result, 'result_str_dict'):
+            formatted_results = units.create_formatted_output(self.logic().fit_result.result_str_dict)
+            self._mw.fit_param_results_TextBrowser.setPlainText(formatted_results)
+
+        theta, r = self.logic().get_fit_data(unit='radian')
+        x = r * np.cos(theta)
+        y = r * np.sin(theta)
+        if len(y) > 0:
+            self.fit_curve.setData(x=x, y=y)
 
     def update_module_state(self):
         """ Enable and disable buttons and editing when logic module state changes"""
         active = self.logic().module_state() == 'locked'
         self._mw.run_Action.setEnabled(not active)
-        self._mw.stop_Action.setEnabled(active)
+        self._mw.stop_Action.setEnabled(active and not self.logic().stop_requested)
         self._mw.actionSave.setEnabled(not active)
         self._mw.resolution_SpinBox.setEnabled(not active)
         self._mw.time_per_point_SpinBox.setEnabled(not active)
@@ -201,3 +228,7 @@ class Gui(GUIBase):
         self.logic().background_value = self._mw.background_doubleSpinBox.value()
         self.logic().background_time = self._mw.background_time_doubleSpinBox.value()
 
+    def do_fit(self):
+        """ Command logic to do the fit with the chosen fit function. """
+        fit_function = self._mw.fit_param_fit_func_ComboBox.getCurrentFit()[0]
+        self.logic().do_fit(fit_function)

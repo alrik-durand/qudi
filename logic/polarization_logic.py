@@ -21,10 +21,12 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 
 import time
 import numpy as np
+import matplotlib.pyplot as plt
 from core.connector import Connector
 from logic.generic_logic import GenericLogic
 from core.statusvariable import StatusVar
 from core.configoption import ConfigOption
+from collections import OrderedDict
 from qtpy import QtCore
 
 
@@ -37,11 +39,16 @@ class PolarizationLogic(GenericLogic):
     counterlogic = Connector(interface='CounterLogic')
     savelogic = Connector(interface='SaveLogic')
     motor = Connector(interface='MotorInterface')
+    fitlogic = Connector(interface='FitLogic')
 
     motor_axis = ConfigOption(name='motor_axis', default='phi')
 
     main_channel = ConfigOption(name='main_channel', default=0)
     secondary_channel = ConfigOption(name='secondary_channel', default=None)
+
+    fc = None
+    fit_curve = None
+    fit_result = None
 
     signal_rotation_finished = QtCore.Signal()
     signal_start_rotation = QtCore.Signal()
@@ -57,6 +64,7 @@ class PolarizationLogic(GenericLogic):
     _current_index = 0
 
     sigDataUpdated = QtCore.Signal()
+    sigFitUpdated = QtCore.Signal()
     sigStateChanged = QtCore.Signal()
     sigMeasurementParametersChanged = QtCore.Signal()
     sigBackgroundParametersChanged = QtCore.Signal()
@@ -68,9 +76,21 @@ class PolarizationLogic(GenericLogic):
         # Connect signals
         self.counterlogic().sigCountStatusChanged.connect(self.abort, QtCore.Qt.DirectConnection)
 
+        self.fc = self.fitlogic().make_fit_container('polarization', '1d')
+        self.fc.set_units(['rad', 'c/s'])
+        # Recall saved status variables
+        if 'fits' in self._statusVariables and isinstance(self._statusVariables.get('fits'), dict):
+            self.fc.load_from_dict(self._statusVariables['fits'])
+        else:
+            self.fc.load_from_dict(OrderedDict({'1d': OrderedDict({'dipole': {'fit_function': 'dipole',
+                                                                              'estimator': 'generic'}})}))
+
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module. """
         self.counterlogic().sigCountStatusChanged.disconnect()
+
+        if len(self.fc.fit_list) > 0:
+            self._statusVariables['fits'] = self.fc.save_to_dict()
 
     @property
     def motor_constraints(self):
@@ -148,6 +168,10 @@ class PolarizationLogic(GenericLogic):
             self._background_time = value
             self.sigBackgroundParametersChanged.emit()
 
+    @property
+    def stop_requested(self):
+        return self._stop_requested
+
     def reset_motor(self, wait=False):
         """ Reset the motor to its origin
 
@@ -164,17 +188,21 @@ class PolarizationLogic(GenericLogic):
         self._stop_requested = False
         self.module_state.lock()
         self.sigStateChanged.emit()
-        self._x_axis = np.linspace(start=0, stop=180, num=self.resolution)
+        self._x_axis = np.linspace(start=0, stop=360, num=self.resolution, endpoint=True)
         self._y_axis = np.full(self.resolution, np.nan)
+        self.fc.clear_result()
+        self.fit_curve = None
+        self.fit_result = None
         if self.use_secondary_channel:
             self._y2_axis = np.full(self.resolution, np.nan)
         self.sigDataUpdated.emit()
+        self.sigFitUpdated.emit()
         self.reset_motor(wait=True)
         bin_per_step = int(self.counterlogic().get_count_frequency() * self.time_per_point)
 
         for i, x in enumerate(self._x_axis):
             self._current_index = i
-            move_time = self.set_motor_position(x)
+            move_time = self.set_motor_position(x / 2)  # Half wave plate
             time.sleep(move_time)
             time.sleep(self.time_per_point)
             self._y_axis[i] = self.counterlogic().countdata[self.main_channel, -bin_per_step:-1].sum()
@@ -195,6 +223,7 @@ class PolarizationLogic(GenericLogic):
         """ Abort the acquisition in progress - the motor will reset to zero """
         if self.module_state() == 'locked':
             self._stop_requested = True
+            self.sigStateChanged.emit()
 
     def take_background(self, *args, duration=None):
         """ Measure signal for a given time and save it as new background value """
@@ -217,9 +246,98 @@ class PolarizationLogic(GenericLogic):
     def use_secondary_channel(self):
         return self.secondary_channel is not None
 
-    def get_data(self):
+    def get_data(self, unit='degree'):
         """ Return current data from the last measurement"""
-        return self._x_axis, self._y_axis-self.background_value, self._y2_axis-self.background_value
+        x, y, y2 = self._x_axis, self._y_axis-self.background_value, self._y2_axis-self.background_value
+        if unit == 'radian':
+            x = x / 180 * np.pi
+        x = x[~np.isnan(y)]
+        y = y[~np.isnan(y)]
+        y2 = y2[~np.isnan(y2)]
+        return x, y, y2
 
-    def save(self):
-        pass
+    def get_fit_data(self, unit='degree'):
+        """ Return data from the last fit """
+        x, y = self.fit_curve
+        if unit == 'radian':
+            x = x / 180 * np.pi
+        return x, y
+
+    def save(self, *arg, save_fit=True, save_figure=True):
+        """ Save current data """
+        filepath = self.savelogic().get_path_for_module(module_name='polarization')
+
+        x, y, y2 = self.get_data(unit='radian')
+        if len(y) == 0:
+            self.log.error('No data to save.')
+
+        data = OrderedDict()
+        data['x'] = x
+        data['y'] = y
+        parameters = OrderedDict()
+        parameters['resolution'] = self.resolution
+        parameters['time_per_point'] = self.time_per_point
+        parameters['background_value'] = self.background_value
+        parameters['background_time'] = self.background_time
+
+        print(save_fit, self.fc.current_fit_result is not None)
+        if save_fit and self.fc.current_fit_result is not None:
+            parameters['Fit function'] = self.fc.current_fit
+            for name, param in self.fc.current_fit_param.items():
+                parameters[name] = param.value
+                parameters['{}_stderr'.format(name)] = param.stderr
+
+        fig = None
+        if save_figure:
+            ax = plt.subplot(projection='polar')
+            ax.plot(x, y, linestyle='None', marker='.', label='Data')
+            # ax.grid(True)
+            if save_fit and self.fc.current_fit_result is not None:
+                x_fit, y_fit = self.get_fit_data(unit='radian')
+                ax.plot(x_fit, y_fit, label='Fit')
+            fig = plt.gcf()
+
+        self.savelogic().save_data(data,
+                                   filepath=filepath,
+                                   parameters=parameters,
+                                   plotfig=fig)
+        self.log.info('Data saved to: {0}'.format(filepath))
+
+    def get_fit_functions(self):
+        """ Return the fit names
+        @return list(str): list of fit function names
+        """
+        return list(self.fc.fit_list)
+
+    def do_fit(self, fit_function=None, x_data=None, y_data=None):
+        """ Execute the currently configured fit on the measurement data. Optionally on passed data
+
+        @param string fit_function: The name of one of the defined fit functions.
+        @param array x_data: angle data.
+        @param array y_data: intensity data.
+        """
+        if (x_data is None) or (y_data is None):
+            x_data, y_data, _ = self.get_data(unit='radian')
+
+        if fit_function is not None and isinstance(fit_function, str):
+            if fit_function in self.get_fit_functions():
+                self.fc.set_current_fit(fit_function)
+            else:
+                self.fc.set_current_fit('No Fit')
+                if fit_function != 'No Fit':
+                    self.log.warning('Fit function "{0}" not available in polarization logic '
+                                     'fit container.'.format(fit_function)
+                                     )
+
+        if len(y_data) == 0:
+            self.fit_curve = None
+            self.fit_result = None
+            return
+
+        fit_x, fit_y, result = self.fc.do_fit(x_data, y_data)
+        fit_x = fit_x*180/np.pi  # save back to degree
+
+        self.fit_curve = np.array([fit_x, fit_y])
+        self.fit_result = result
+
+        self.sigFitUpdated.emit()
