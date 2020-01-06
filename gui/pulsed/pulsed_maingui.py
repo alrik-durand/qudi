@@ -62,6 +62,14 @@ class PulseAnalysisTab(QtWidgets.QWidget):
         super().__init__()
         uic.loadUi(ui_file, self)
 
+class TimetraceAnalysisTab(QtWidgets.QWidget):
+    def __init__(self):
+        # Get the path to the *.ui file
+        this_dir = os.path.dirname(__file__)
+        ui_file = os.path.join(this_dir, 'ui_timetrace_analysis.ui')
+        # Load it
+        super().__init__()
+        uic.loadUi(ui_file, self)
 
 class PulseGeneratorTab(QtWidgets.QWidget):
     def __init__(self):
@@ -172,6 +180,7 @@ class PulsedMeasurementGui(GUIBase):
         """
         self._mw = PulsedMeasurementMainWindow()
         self._pa = PulseAnalysisTab()
+        self._ta = TimetraceAnalysisTab()
         self._pg = PulseGeneratorTab()
         self._pe = PulseExtractionTab()
         self._pm = PredefinedMethodsTab()
@@ -182,6 +191,7 @@ class PulsedMeasurementGui(GUIBase):
 
         self._mw.tabWidget.addTab(self._pa, 'Analysis')
         self._mw.tabWidget.addTab(self._pe, 'Pulse Extraction')
+        self._mw.tabWidget.addTab(self._ta, 'Timetrace  Analysis')
         self._mw.tabWidget.addTab(self._pg, 'Pulse Generator')
         self._mw.tabWidget.addTab(self._sg, 'Sequence Generator')
         self._mw.tabWidget.addTab(self._pm, 'Predefined Methods')
@@ -189,6 +199,7 @@ class PulsedMeasurementGui(GUIBase):
         self._activate_main_window_ui()
         self._activate_extraction_ui()
         self._activate_analysis_ui()
+        self._activate_timetrace_analysis_ui()
         self._activate_generator_settings_ui()
         self._activate_pulse_generator_ui()
         self._activate_predefined_methods_ui()
@@ -196,9 +207,12 @@ class PulsedMeasurementGui(GUIBase):
         self._activate_analysis_settings_ui()
         self._activate_predefined_methods_settings_ui()
 
+        self.measurement_data_updated()
+
         self._connect_main_window_signals()
         self._connect_analysis_tab_signals()
         self._connect_extraction_tab_signals()
+        self._connect_timetrace_analysis_tab_signals()
         self._connect_pulse_generator_tab_signals()
         self._connect_predefined_methods_tab_signals()
         self._connect_sequence_generator_tab_signals()
@@ -217,6 +231,7 @@ class PulsedMeasurementGui(GUIBase):
         """
         self._deactivate_predefined_methods_settings_ui()
         self._deactivate_analysis_settings_ui()
+        self._deactivate_timetrace_analysis_ui()
         self._deactivate_generator_settings_ui()
         self._deactivate_sequence_generator_ui()
         self._deactivate_predefined_methods_ui()
@@ -282,6 +297,7 @@ class PulsedMeasurementGui(GUIBase):
         # Connect signals used in fit settings dialog
         self._fsd.sigFitsUpdated.connect(self._pa.fit_param_fit_func_ComboBox.setFitFunctions)
         self._fsd.sigFitsUpdated.connect(self._pa.fit_param_alt_fit_func_ComboBox.setFitFunctions)
+        self._fsd.sigFitsUpdated.connect(self._ta.fit_method_comboBox.setFitFunctions)
         return
 
     def _connect_pulse_generator_tab_signals(self):
@@ -373,6 +389,18 @@ class PulsedMeasurementGui(GUIBase):
         self._pe.laserpulses_display_raw_CheckBox.stateChanged.connect(self.update_laser_data)
         return
 
+    def _connect_timetrace_analysis_tab_signals(self):
+        # Connect timetrace analysis tab signals
+        self._ta.param_1_rebinnig_spinBox.editingFinished.connect(self.timetrace_analysis_settings_changed)
+        self._ta.param_2_start_DSpinBox.editingFinished.connect(self.timetrace_analysis_settings_changed)
+        self._ta.param_3_width_DSpinBox.editingFinished.connect(self.timetrace_analysis_settings_changed)
+        self._ta.param_4_origin_DSpinBox.editingFinished.connect(self.timetrace_analysis_settings_changed)
+        self.ta_start_line.sigPositionChangeFinished.connect(self.timetrace_analysis_settings_changed)
+        self.ta_end_line.sigPositionChangeFinished.connect(self.timetrace_analysis_settings_changed)
+        self.ta_origin_line.sigPositionChangeFinished.connect(self.timetrace_analysis_settings_changed)
+
+        self._ta.timetrace_fit_pushButton.clicked.connect(self.fit_clicked)
+
     def _connect_predefined_methods_tab_signals(self):
         pass
 
@@ -388,6 +416,7 @@ class PulsedMeasurementGui(GUIBase):
         self.pulsedmasterlogic().sigFastCounterSettingsUpdated.connect(self.fast_counter_settings_updated)
         self.pulsedmasterlogic().sigMeasurementSettingsUpdated.connect(self.measurement_settings_updated)
         self.pulsedmasterlogic().sigAnalysisSettingsUpdated.connect(self.analysis_settings_updated)
+        self.pulsedmasterlogic().sigTimetraceAnalysisSettingsUpdated.connect(self.timetrace_analysis_settings_updated)
         self.pulsedmasterlogic().sigExtractionSettingsUpdated.connect(self.extraction_settings_updated)
 
         self.pulsedmasterlogic().sigBlockDictUpdated.connect(self.update_block_dict)
@@ -526,6 +555,18 @@ class PulsedMeasurementGui(GUIBase):
         self._pe.laserpulses_display_raw_CheckBox.stateChanged.disconnect()
         return
 
+    def _disconnect_timetrace_analysis_tab_signals(self):
+        # Connect timetrace analysis tab signals
+        self._ta.param_1_rebinnig_spinBox.editingFinished.disconnect()
+        self._ta.param_2_start_DSpinBox.editingFinished.disconnect()
+        self._ta.param_3_width_DSpinBox.editingFinished.disconnect()
+        self._ta.param_4_origin_DSpinBox.editingFinished.disconnect()
+        self.ta_start_line.sigPositionChangeFinished.disconnect()
+        self.ta_end_line.sigPositionChangeFinished.disconnect()
+        self.ta_origin_line.sigPositionChangeFinished.disconnect()
+
+        self._pa.timetrace_fit_pushButton.clicked.disconnect()
+
     def _disconnect_predefined_methods_tab_signals(self):
         for combobox in self._channel_selection_comboboxes:
             combobox.currentIndexChanged.disconnect()
@@ -575,7 +616,7 @@ class PulsedMeasurementGui(GUIBase):
         pass
 
     def _setup_toolbar(self):
-        # create all the needed control widgets on the fly
+        # create all the needed control widgets on the fly - Qt Creator does not like non button objects in toolbars
         self._mw.pulser_on_off_PushButton = QtWidgets.QPushButton()
         self._mw.pulser_on_off_PushButton.setText('Pulser ON')
         self._mw.pulser_on_off_PushButton.setToolTip('Switch the device on and off.')
@@ -603,6 +644,20 @@ class PulsedMeasurementGui(GUIBase):
         self._mw.save_tag_LineEdit = QtWidgets.QLineEdit()
         self._mw.save_tag_LineEdit.setMaximumWidth(200)
         self._mw.save_ToolBar.addWidget(self._mw.save_tag_LineEdit)
+
+
+        self._mw.save_label_pulses =  QtWidgets.QLabel('Save pulses :')
+        self._mw.save_label_pulses.setContentsMargins(5, 0, 0, 0)
+        self._mw.save_checkbox_pulses = QtWidgets.QCheckBox()
+        self._mw.save_checkbox_pulses.setChecked(True)
+        self._mw.save_label_timetrace = QtWidgets.QLabel('Save timetrace :')
+        self._mw.save_label_timetrace.setContentsMargins(5, 0, 0, 0)
+        self._mw.save_checkbox_timetrace = QtWidgets.QCheckBox()
+
+        self._mw.save_ToolBar.addWidget(self._mw.save_label_pulses)
+        self._mw.save_ToolBar.addWidget(self._mw.save_checkbox_pulses)
+        self._mw.save_ToolBar.addWidget(self._mw.save_label_timetrace)
+        self._mw.save_ToolBar.addWidget(self._mw.save_checkbox_timetrace)
         return
 
     @QtCore.Slot(bool)
@@ -788,9 +843,13 @@ class PulsedMeasurementGui(GUIBase):
         self._mw.actionSave.setEnabled(False)
         save_tag = self._mw.save_tag_LineEdit.text()
         with_error = self._pa.ana_param_errorbars_CheckBox.isChecked()
+        save_pulses = self._mw.save_checkbox_pulses.isChecked()
+        save_timetrace = self._mw.save_checkbox_timetrace.isChecked()
 
-        self.pulsedmasterlogic().save_measurement_data(tag=save_tag,
-                                                       with_error=with_error)
+        self.pulsedmasterlogic().save_measurement_data(tag=save_tag, with_error=with_error,
+                                                       save_laser_pulses=save_pulses,
+                                                       save_pulsed_measurement=save_pulses,
+                                                       save_timetrace=save_timetrace)
         self._mw.action_save.setEnabled(True)
         self._mw.actionSave.setEnabled(True)
         return
@@ -2271,7 +2330,6 @@ class PulsedMeasurementGui(GUIBase):
 
         self.toggle_error_bars(self._ana_param_errorbars)
         self.second_plot_changed(self.pulsedmasterlogic().alternative_data_type)
-        self.measurement_data_updated()
         return
 
     def _deactivate_analysis_ui(self):
@@ -2358,6 +2416,8 @@ class PulsedMeasurementGui(GUIBase):
 
         # dealing with the laser plot
         self.update_laser_data()
+        # dealing with the window plot
+        self.update_timetrace_window()
         return
 
     @QtCore.Slot()
@@ -2365,21 +2425,24 @@ class PulsedMeasurementGui(GUIBase):
         """Fits the current data"""
         if self.sender().objectName().startswith('alt_fit_param'):
             current_fit_method = self._pa.fit_param_alt_fit_func_ComboBox.getCurrentFit()[0]
-            use_alt_data = True
+            fit_type = 'pulses_alt'
+        elif self.sender().objectName().startswith('timetrace'):
+            current_fit_method = self._ta.fit_method_comboBox.getCurrentFit()[0]
+            fit_type = 'timetrace'
         else:
             current_fit_method = self._pa.fit_param_fit_func_ComboBox.getCurrentFit()[0]
-            use_alt_data = False
-        self.pulsedmasterlogic().do_fit(current_fit_method, use_alt_data)
+            fit_type = 'pulses'
+        self.pulsedmasterlogic().do_fit(current_fit_method, fit_type)
         return
 
-    @QtCore.Slot(str, np.ndarray, object, bool)
-    def fit_data_updated(self, fit_method, fit_data, result, use_alternative_data):
+    @QtCore.Slot(str, np.ndarray, object, str)
+    def fit_data_updated(self, fit_method, fit_data, result, fit_type):
         """
 
         @param str fit_method:
         @param numpy.ndarray fit_data:
         @param object result:
-        @param bool use_alternative_data:
+        @param str fit_type: 'pulses' 'pulses_alt' or 'timetrace'
         @return:
         """
         # Get formatted result string
@@ -2395,7 +2458,7 @@ class PulsedMeasurementGui(GUIBase):
         # Clear text widget and show formatted result string.
         # Update plot and fit function selection ComboBox.
         # Unblock signals.
-        if use_alternative_data:
+        if fit_type == 'pulses_alt':
             self._pa.fit_param_alt_fit_func_ComboBox.blockSignals(True)
             self._pa.alt_fit_param_results_TextBrowser.clear()
             self._pa.alt_fit_param_results_TextBrowser.setPlainText(formatted_fitresult)
@@ -2407,7 +2470,7 @@ class PulsedMeasurementGui(GUIBase):
             elif fit_method != 'No Fit' and self.second_fit_image not in self._pa.pulse_analysis_second_PlotWidget.items():
                 self._pa.pulse_analysis_second_PlotWidget.addItem(self.second_fit_image)
             self._pa.fit_param_alt_fit_func_ComboBox.blockSignals(False)
-        else:
+        elif fit_type == 'pulses':
             self._pa.fit_param_fit_func_ComboBox.blockSignals(True)
             self._pa.fit_param_results_TextBrowser.clear()
             self._pa.fit_param_results_TextBrowser.setPlainText(formatted_fitresult)
@@ -2419,6 +2482,19 @@ class PulsedMeasurementGui(GUIBase):
             elif fit_method != 'No Fit' and self.fit_image not in self._pa.pulse_analysis_PlotWidget.items():
                 self._pa.pulse_analysis_PlotWidget.addItem(self.fit_image)
             self._pa.fit_param_fit_func_ComboBox.blockSignals(False)
+        elif fit_type == 'timetrace':
+            self._ta.fit_method_comboBox.blockSignals(True)
+            self._ta.fit_result_textBrowser.clear()
+            self._ta.fit_result_textBrowser.setPlainText(formatted_fitresult)
+            if fit_method:
+                self._ta.fit_method_comboBox.setCurrentFit(fit_method)
+            self.ta_window_image_fit.setData(x=fit_data[0], y=fit_data[1])
+            if fit_method == 'No Fit' and self.ta_window_image_fit in self._ta.window_PlotWidget.items():
+                self._ta.window_PlotWidget.removeItem(self.ta_window_image_fit)
+            elif fit_method != 'No Fit' and self.ta_window_image_fit not in self._ta.window_PlotWidget.items():
+                self._ta.window_PlotWidget.addItem(self.ta_window_image_fit)
+            self._ta.fit_method_comboBox.blockSignals(False)
+
         return
 
     @QtCore.Slot()
@@ -3103,4 +3179,144 @@ class PulsedMeasurementGui(GUIBase):
         self.lasertrace_image.setData(x=x_data, y=y_data)
         return
 
+    ###########################################################################
+    #                      Timetrace analysis tab related methods             #
+    ###########################################################################
+    def _activate_timetrace_analysis_ui(self):
+        # Configure the full timetrace plot display:
+        self.ta_start_line = pg.InfiniteLine(pos=0,
+                                              pen={'color': palette.c3, 'width': 1},
+                                              movable=True)
+        self.ta_end_line = pg.InfiniteLine(pos=0,
+                                            pen={'color': palette.c3, 'width': 1},
+                                            movable=True)
+        self.ta_origin_line = pg.InfiniteLine(pos=0,
+                                              pen={'color': palette.c4, 'width': 1},
+                                              movable=True)
+        self.ta_full_image = pg.PlotDataItem(np.arange(10), np.zeros(10), pen=palette.c1)
+        self._ta.full_timetrace_PlotWidget.addItem(self.ta_full_image)
+        self._ta.full_timetrace_PlotWidget.addItem(self.ta_start_line)
+        self._ta.full_timetrace_PlotWidget.addItem(self.ta_end_line)
+        self._ta.full_timetrace_PlotWidget.addItem(self.ta_origin_line)
+        self._ta.full_timetrace_PlotWidget.setLabel(axis='bottom', text='time', units='s')
+        self._ta.full_timetrace_PlotWidget.setLabel(axis='left', text='events', units='#')
 
+        # Configure the window plot display:
+        self.ta_window_image = pg.PlotDataItem(np.arange(10), np.zeros(10), pen=palette.c1)
+        self._ta.window_PlotWidget.addItem(self.ta_window_image)
+        self._ta.window_PlotWidget.setLabel(axis='bottom', text='time', units='s')
+        self._ta.window_PlotWidget.setLabel(axis='left', text='Photoluminescence', units='c/s')
+
+        self._ta.window_PlotWidget.showAxis('right')
+        self._ta.window_PlotWidget.getAxis('right').setLabel('events', units='#', color=palette.c1.name())
+
+        self._ta.window_PlotWidget_ViewBox = pg.ViewBox()
+        self._ta.window_PlotWidget.scene().addItem(self._ta.window_PlotWidget_ViewBox)
+        self._ta.window_PlotWidget.getAxis('right').linkToView(self._ta.window_PlotWidget_ViewBox)
+        self._ta.window_PlotWidget_ViewBox.setXLink(self._ta.window_PlotWidget)
+
+        def updateSecondAxis():
+            sweeps = self.pulsedmasterlogic().elapsed_sweeps
+            bin_width = self.pulsedmasterlogic().fast_counter_settings['bin_width']
+            rebinning = self.pulsedmasterlogic().timetrace_analysis_settings['rebinning']
+            factor = (sweeps * (bin_width * rebinning))
+            if sweeps == 0:
+                return
+            view_rect = self._ta.window_PlotWidget.viewRect()
+            y_range = np.array([view_rect.bottom(), view_rect.top()]) * factor
+            self._ta.window_PlotWidget_ViewBox.setRange(yRange=y_range, padding=0)
+
+        updateSecondAxis()
+        self._ta.window_PlotWidget_ViewBox.sigRangeChanged.connect(updateSecondAxis)
+
+
+        self.ta_window_image_fit = pg.PlotDataItem(pen=palette.c3)
+
+        self._ta.fit_method_comboBox.setFitFunctions(self._fsd.currentFits)
+
+        # Initialize from logic values
+        self.timetrace_analysis_settings_updated(self.pulsedmasterlogic().timetrace_analysis_settings)
+        self.update_timetrace_window()
+
+    def _deactivate_timetrace_analysis_ui(self):
+        pass
+
+    @QtCore.Slot()
+    def timetrace_analysis_settings_changed(self):
+        """
+
+        @return:
+        """
+        settings_dict = dict()
+        settings_dict['rebinning'] = self._ta.param_1_rebinnig_spinBox.value()
+        # Check if the signal has been emitted by a dragged line in the laser plot
+        if self.sender().__class__.__name__ == 'InfiniteLine':
+            start = self.ta_start_line.value()
+            end = self.ta_end_line.value()
+            settings_dict['start'] = start if start <= end else end
+            settings_dict['end'] = end if end >= start else start
+            settings_dict['origin'] = self.ta_origin_line.value()
+        else:
+            settings_dict['start'] = self._ta.param_2_start_DSpinBox.value()
+            settings_dict['end'] = settings_dict['start'] + self._ta.param_3_width_DSpinBox.value()
+            settings_dict['origin'] = self._ta.param_4_origin_DSpinBox.value()
+
+        self.pulsedmasterlogic().set_timetrace_analysis_settings(settings_dict)
+        return
+
+    @QtCore.Slot(dict)
+    def timetrace_analysis_settings_updated(self, settings_dict):
+        """
+
+        @param dict settings_dict: dictionary with parameters to update
+        @return:
+        """
+        # block signals
+        self._ta.param_1_rebinnig_spinBox.blockSignals(True)
+        self._ta.param_2_start_DSpinBox.blockSignals(True)
+        self._ta.param_3_width_DSpinBox.blockSignals(True)
+        self._ta.param_4_origin_DSpinBox.blockSignals(True)
+        self.ta_start_line.blockSignals(True)
+        self.ta_end_line.blockSignals(True)
+        self.ta_origin_line.blockSignals(True)
+
+        if 'start' in settings_dict:
+            self._ta.param_2_start_DSpinBox.setValue(settings_dict['start'])
+            self.ta_start_line.setValue(settings_dict['start'])
+        if 'end' in settings_dict and 'start' in settings_dict:
+            self._ta.param_3_width_DSpinBox.setValue(settings_dict['end']-settings_dict['start'])
+            self.ta_end_line.setValue(settings_dict['end'])
+        if 'origin' in settings_dict:
+            self._ta.param_4_origin_DSpinBox.setValue(settings_dict['origin'])
+            self.ta_origin_line.setValue(settings_dict['origin'])
+        if 'rebinning' in settings_dict:
+            index = self._ta.param_1_rebinnig_spinBox.setValue(settings_dict['rebinning'])
+
+        # unblock signals
+        self._ta.param_1_rebinnig_spinBox.blockSignals(False)
+        self._ta.param_2_start_DSpinBox.blockSignals(False)
+        self._ta.param_3_width_DSpinBox.blockSignals(False)
+        self._ta.param_4_origin_DSpinBox.blockSignals(False)
+        self.ta_start_line.blockSignals(False)
+        self.ta_end_line.blockSignals(False)
+        self.ta_origin_line.blockSignals(False)
+
+        self.update_timetrace_window()
+
+    @QtCore.Slot()
+    def update_timetrace_window(self):
+        """
+
+        @return:
+        """
+        # Determine the right array to plot as y-data
+        bin_width = self.pulsedmasterlogic().fast_counter_settings['bin_width']
+        y_data = self.pulsedmasterlogic().raw_data
+        x_data = np.arange(y_data.size, dtype=float) * bin_width
+
+        self.ta_full_image.setData(x=x_data, y=y_data)
+
+        x_data, y_data = self.pulsedmasterlogic().timetrace_data
+        if len(y_data) > 1:
+            self.ta_window_image.setData(x=x_data, y=y_data)
+        return

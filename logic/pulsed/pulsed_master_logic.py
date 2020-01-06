@@ -52,7 +52,7 @@ class PulsedMasterLogic(GenericLogic):
     sequencegeneratorlogic = Connector(interface='SequenceGeneratorLogic')
 
     # PulsedMeasurementLogic control signals
-    sigDoFit = QtCore.Signal(str, bool)
+    sigDoFit = QtCore.Signal(str, str)
     sigToggleMeasurement = QtCore.Signal(bool, str)
     sigToggleMeasurementPause = QtCore.Signal(bool)
     sigTogglePulser = QtCore.Signal(bool)
@@ -61,6 +61,7 @@ class PulsedMasterLogic(GenericLogic):
     sigMeasurementSettingsChanged = QtCore.Signal(dict)
     sigExtMicrowaveSettingsChanged = QtCore.Signal(dict)
     sigAnalysisSettingsChanged = QtCore.Signal(dict)
+    sigTimetraceAnalysisSettingsChanged = QtCore.Signal(dict)
     sigExtractionSettingsChanged = QtCore.Signal(dict)
     sigTimerIntervalChanged = QtCore.Signal(float)
     sigAlternativeDataTypeChanged = QtCore.Signal(str)
@@ -69,7 +70,7 @@ class PulsedMasterLogic(GenericLogic):
     # signals for master module (i.e. GUI) coming from PulsedMeasurementLogic
     sigMeasurementDataUpdated = QtCore.Signal()
     sigTimerUpdated = QtCore.Signal(float, int, float)
-    sigFitUpdated = QtCore.Signal(str, np.ndarray, object, bool)
+    sigFitUpdated = QtCore.Signal(str, np.ndarray, object, str)
     sigMeasurementStatusUpdated = QtCore.Signal(bool, bool)
     sigPulserRunningUpdated = QtCore.Signal(bool)
     sigExtMicrowaveRunningUpdated = QtCore.Signal(bool)
@@ -77,6 +78,7 @@ class PulsedMasterLogic(GenericLogic):
     sigFastCounterSettingsUpdated = QtCore.Signal(dict)
     sigMeasurementSettingsUpdated = QtCore.Signal(dict)
     sigAnalysisSettingsUpdated = QtCore.Signal(dict)
+    sigTimetraceAnalysisSettingsUpdated = QtCore.Signal(dict)
     sigExtractionSettingsUpdated = QtCore.Signal(dict)
 
     # SequenceGeneratorLogic control signals
@@ -153,6 +155,8 @@ class PulsedMasterLogic(GenericLogic):
             self.pulsedmeasurementlogic().set_microwave_settings, QtCore.Qt.QueuedConnection)
         self.sigAnalysisSettingsChanged.connect(
             self.pulsedmeasurementlogic().set_analysis_settings, QtCore.Qt.QueuedConnection)
+        self.sigTimetraceAnalysisSettingsChanged.connect(
+            self.pulsedmeasurementlogic().set_timetrace_analysis_settings, QtCore.Qt.QueuedConnection)
         self.sigExtractionSettingsChanged.connect(
             self.pulsedmeasurementlogic().set_extraction_settings, QtCore.Qt.QueuedConnection)
         self.sigTimerIntervalChanged.connect(
@@ -183,6 +187,8 @@ class PulsedMasterLogic(GenericLogic):
             self.sigMeasurementSettingsUpdated, QtCore.Qt.QueuedConnection)
         self.pulsedmeasurementlogic().sigAnalysisSettingsUpdated.connect(
             self.sigAnalysisSettingsUpdated, QtCore.Qt.QueuedConnection)
+        self.pulsedmeasurementlogic().sigTimetraceAnalysisSettingsUpdated.connect(
+            self.sigTimetraceAnalysisSettingsUpdated, QtCore.Qt.QueuedConnection)
         self.pulsedmeasurementlogic().sigExtractionSettingsUpdated.connect(
             self.sigExtractionSettingsUpdated, QtCore.Qt.QueuedConnection)
 
@@ -257,6 +263,7 @@ class PulsedMasterLogic(GenericLogic):
         self.sigMeasurementSettingsChanged.disconnect()
         self.sigExtMicrowaveSettingsChanged.disconnect()
         self.sigAnalysisSettingsChanged.disconnect()
+        self.sigTimetraceAnalysisSettingsChanged.disconnect()
         self.sigExtractionSettingsChanged.disconnect()
         self.sigTimerIntervalChanged.disconnect()
         self.sigAlternativeDataTypeChanged.disconnect()
@@ -271,7 +278,7 @@ class PulsedMasterLogic(GenericLogic):
         self.pulsedmeasurementlogic().sigExtMicrowaveSettingsUpdated.disconnect()
         self.pulsedmeasurementlogic().sigFastCounterSettingsUpdated.disconnect()
         self.pulsedmeasurementlogic().sigMeasurementSettingsUpdated.disconnect()
-        self.pulsedmeasurementlogic().sigAnalysisSettingsUpdated.disconnect()
+        self.pulsedmeasurementlogic().sigTimetraceAnalysisSettingsUpdated.disconnect()
         self.pulsedmeasurementlogic().sigExtractionSettingsUpdated.disconnect()
 
         # Disconnect signals controlling SequenceGeneratorLogic
@@ -351,6 +358,10 @@ class PulsedMasterLogic(GenericLogic):
         return self.pulsedmeasurementlogic().analysis_settings
 
     @property
+    def timetrace_analysis_settings(self):
+        return self.pulsedmeasurementlogic().timetrace_analysis_settings
+
+    @property
     def extraction_settings(self):
         return self.pulsedmeasurementlogic().extraction_settings
 
@@ -370,6 +381,9 @@ class PulsedMasterLogic(GenericLogic):
     def raw_data(self):
         return self.pulsedmeasurementlogic().raw_data
 
+    @property
+    def timetrace_data(self):
+        return self.pulsedmeasurementlogic().timetrace_data
     @property
     def laser_data(self):
         return self.pulsedmeasurementlogic().laser_data
@@ -435,6 +449,19 @@ class PulsedMasterLogic(GenericLogic):
             self.sigAnalysisSettingsChanged.emit(settings_dict)
         else:
             self.sigAnalysisSettingsChanged.emit(kwargs)
+        return
+
+    @QtCore.Slot(dict)
+    def set_timetrace_analysis_settings(self, settings_dict=None, **kwargs):
+        """
+
+        @param settings_dict:
+        @param kwargs:
+        """
+        if isinstance(settings_dict, dict):
+            self.sigTimetraceAnalysisSettingsChanged.emit(settings_dict)
+        else:
+            self.sigTimetraceAnalysisSettingsChanged.emit(kwargs)
         return
 
     @QtCore.Slot(dict)
@@ -556,30 +583,30 @@ class PulsedMasterLogic(GenericLogic):
         return
 
     @QtCore.Slot(str)
-    @QtCore.Slot(str, bool)
-    def do_fit(self, fit_function, use_alternative_data=False):
+    @QtCore.Slot(str, str)
+    def do_fit(self, fit_function, fit_type='pulses'):
         """
 
         @param str fit_function:
-        @param bool use_alternative_data:
+        @param str fit_type: 'pulsed', 'pulses_alt' or 'timetrace'
         """
-        if isinstance(fit_function, str) and isinstance(use_alternative_data, bool):
+        if isinstance(fit_function, str) and isinstance(fit_type, str):
             self.status_dict['fitting_busy'] = True
-            self.sigDoFit.emit(fit_function, use_alternative_data)
+            self.sigDoFit.emit(fit_function, fit_type)
         return
 
-    @QtCore.Slot(str, np.ndarray, object, bool)
-    def fit_updated(self, fit_name, fit_data, fit_result, use_alternative_data):
+    @QtCore.Slot(str, np.ndarray, object, str)
+    def fit_updated(self, fit_name, fit_data, fit_result, fit_type):
         """
 
         @return:
         """
         self.status_dict['fitting_busy'] = False
-        self.sigFitUpdated.emit(fit_name, fit_data, fit_result, use_alternative_data)
+        self.sigFitUpdated.emit(fit_name, fit_data, fit_result, fit_type)
         return
 
     def save_measurement_data(self, tag=None, with_error=True, save_laser_pulses=True, save_pulsed_measurement=True,
-                              save_figure=True):
+                              save_figure=True, save_timetrace=False):
         """
         Prepare data to be saved and create a proper plot of the data.
         This is just handed over to the measurement logic.
@@ -589,11 +616,12 @@ class PulsedMasterLogic(GenericLogic):
         @param bool save_laser_pulses: select whether extracted lasers should be saved
         @param bool save_pulsed_measurement: select whether final measurement should be saved
         @param bool save_figure: select whether png and pdf should be saved
+        @param bool save_timetrace: select whether timetrace should be saved
 
         @return str: filepath where data were saved
         """
         self.pulsedmeasurementlogic().save_measurement_data(tag, with_error, save_laser_pulses, save_pulsed_measurement,
-                                                            save_figure)
+                                                            save_figure, save_timetrace=save_timetrace)
         return
 
     #######################################################################
