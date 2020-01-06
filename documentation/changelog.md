@@ -60,6 +60,7 @@ The potential sequence_options are:
 * added the option of an additional path for fit methods
 * added logic modules and GUI to properly control an AOM via a virtual laser - and corresponding documentation
 * added timetrace analysis features to pulsed measurement module
+* added trigger ratio in pulsed logic and GUI to track trigger errors
 * 
 
 
