@@ -653,11 +653,11 @@ class ConfocalLogic(GenericLogic):
         @return int: error code (0:OK, -1:error)
         """
         # Changes the respective value
-        if x is not None:
+        if x is not None and self.x_range[0] <= x <= self.x_range[1]:
             self._current_x = x
-        if y is not None:
+        if y is not None and self.y_range[0] <= y <= self.y_range[1]:
             self._current_y = y
-        if z is not None:
+        if z is not None and self.z_range[0] <= z <= self.z_range[1]:
             self._current_z = z
         if a is not None:
             self._current_a = a
@@ -692,6 +692,17 @@ class ConfocalLogic(GenericLogic):
                       position in meters
         """
         return self._scanning_device.get_scanner_position()
+
+    def get_position_dict(self):
+        """ Get position from scanning device in a dictionary format
+
+        @return dict: Dictionary with keys 'x', 'y', 'z' and eventually 'a'
+        """
+        pos = self._scanning_device.get_scanner_position()
+        dic = {'x': pos[0], 'y': pos[1], 'z': pos[2]}
+        if len(pos) == 4:
+            dic['a'] = pos[3]
+        return dic
 
     def get_scanner_axes(self):
         """ Get axes from scanning device.
