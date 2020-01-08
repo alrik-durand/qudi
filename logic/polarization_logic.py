@@ -43,8 +43,7 @@ class PolarizationLogic(GenericLogic):
 
     motor_axis = ConfigOption(name='motor_axis', default='phi')
 
-    main_channel = ConfigOption(name='main_channel', default=0)
-    secondary_channel = ConfigOption(name='secondary_channel', default=None)
+    main_channel = ConfigOption(name='main_channel', default=0)  # if multiple counter channels
 
     fc = None
     fit_curve = None
@@ -60,7 +59,6 @@ class PolarizationLogic(GenericLogic):
 
     _x_axis = np.array([])
     _y_axis = np.array([])
-    _y2_axis = np.array([])
     _current_index = 0
 
     sigDataUpdated = QtCore.Signal()
@@ -193,8 +191,6 @@ class PolarizationLogic(GenericLogic):
         self.fc.clear_result()
         self.fit_curve = None
         self.fit_result = None
-        if self.use_secondary_channel:
-            self._y2_axis = np.full(self.resolution, np.nan)
         self.sigDataUpdated.emit()
         self.sigFitUpdated.emit()
         self.reset_motor(wait=True)
@@ -207,9 +203,6 @@ class PolarizationLogic(GenericLogic):
             time.sleep(self.time_per_point)
             self._y_axis[i] = self.counterlogic().countdata[self.main_channel, -bin_per_step:-1].sum()
             self._y_axis[i] /= self.time_per_point
-            if self.use_secondary_channel:
-                self._y2_axis[i] = self.counterlogic().countdata[self.secondary_channel, -bin_per_step:-1].sum()
-                self._y2_axis[i] /= self.time_per_point
             if self._stop_requested:
                 break
             self.sigDataUpdated.emit()
@@ -242,19 +235,14 @@ class PolarizationLogic(GenericLogic):
         self.module_state.unlock()
         self.sigStateChanged.emit()
 
-    @property
-    def use_secondary_channel(self):
-        return self.secondary_channel is not None
-
     def get_data(self, unit='degree'):
         """ Return current data from the last measurement"""
-        x, y, y2 = self._x_axis, self._y_axis-self.background_value, self._y2_axis-self.background_value
+        x, y = self._x_axis, self._y_axis-self.background_value
         if unit == 'radian':
             x = x / 180 * np.pi
         x = x[~np.isnan(y)]
         y = y[~np.isnan(y)]
-        y2 = y2[~np.isnan(y2)]
-        return x, y, y2
+        return x, y
 
     def get_fit_data(self, unit='degree'):
         """ Return data from the last fit """
@@ -267,7 +255,7 @@ class PolarizationLogic(GenericLogic):
         """ Save current data """
         filepath = self.savelogic().get_path_for_module(module_name='polarization')
 
-        x, y, y2 = self.get_data(unit='radian')
+        x, y = self.get_data(unit='radian')
         if len(y) == 0:
             self.log.error('No data to save.')
 

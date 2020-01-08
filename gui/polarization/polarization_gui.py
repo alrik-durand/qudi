@@ -56,7 +56,6 @@ class Gui(GUIBase):
 
     _mw = None
     main_curve = None
-    secondary_curve = None
     _fsd = None
 
     def on_activate(self):
@@ -155,15 +154,13 @@ class Gui(GUIBase):
                                           symbolBrush=palette.c1,
                                           symbolSize=7)
         self._mw.plotWidget.addItem(self.main_curve)
-        if self.logic().use_secondary_channel:
-            self.secondary_curve = pg.PlotDataItem(pen=pg.mkPen(palette.c2), symbol=None)
 
         self.fit_curve = pg.PlotDataItem(pen=pg.mkPen(palette.c3))
         self._mw.plotWidget.addItem(self.fit_curve)
 
     def update_data(self):
         """ The function that grabs the data and sends it to the plot. """
-        theta, r, r2 = self.logic().get_data(unit='radian')
+        theta, r = self.logic().get_data(unit='radian')
         x = r * np.cos(theta)
         y = r * np.sin(theta)
         if len(y) > 0:
