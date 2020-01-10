@@ -90,7 +90,11 @@ class Task(InterruptableTask):
         self._measurement.stop_pulsed_measurement()
         self.wait_for_idle()
         if self._was_loaded[1] == 'PulseBlockEnsemble':
-            self._generator.sample_pulse_block_ensemble(self._was_loaded[0])
+            try:
+                self._generator.sample_pulse_block_ensemble(self._was_loaded[0])
+            except TimeoutError:
+                while self._master.status_dict['sampling_ensemble_busy']:
+                    time.sleep(1)
             self._generator.load_ensemble(self._was_loaded[0])
         # self._laser.set_power(self._was_power)
         if self._was_invoke_settings:
