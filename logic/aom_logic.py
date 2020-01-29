@@ -107,6 +107,7 @@ class AomLogic(GenericLogic):
         voltages = np.linspace(0, self.voltage_output().get_control_limit()[1], self._resolution)
         self._powers = []
         self.sigNewDataPoint.emit()
+        self.voltage_output().set_control_value(0)
         time.sleep(self._time_before_start)
         for voltage in voltages:
             self.voltage_output().set_control_value(voltage)
