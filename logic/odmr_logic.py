@@ -44,7 +44,6 @@ class ODMRLogic(GenericLogic):
     fitlogic = Connector(interface='FitLogic')
     microwave1 = Connector(interface='MicrowaveInterface')
     savelogic = Connector(interface='SaveLogic')
-    taskrunner = Connector(interface='TaskRunner')
 
     # config option
     mw_scanmode = ConfigOption(
@@ -90,7 +89,6 @@ class ODMRLogic(GenericLogic):
         self._fit_logic = self.fitlogic()
         self._odmr_counter = self.odmrcounter()
         self._save_logic = self.savelogic()
-        self._taskrunner = self.taskrunner()
 
         # Get hardware constraints
         limits = self.get_hw_constraints()
