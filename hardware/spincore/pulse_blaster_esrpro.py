@@ -32,6 +32,7 @@ from interface.pulser_interface import PulserConstraints
 from core.module import Base, ConfigOption
 from core.util.modules import get_main_dir
 from core.util.mutex import Mutex
+from core.util.network import netobtain
 
 
 class PulseBlasterESRPRO(Base, SwitchInterface, PulserInterface):
@@ -1756,6 +1757,8 @@ class PulseBlasterESRPRO(Base, SwitchInterface, PulserInterface):
         waveform should be terminated.
 
         """
+        analog_samples = netobtain(analog_samples)
+        digital_samples = netobtain(digital_samples)
 
         #FIXME: Remove those, after debug process is finished.
         self._name = name
