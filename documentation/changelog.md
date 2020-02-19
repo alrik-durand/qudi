@@ -65,6 +65,7 @@ The potential sequence_options are:
 * Added save_pdf and save_png config options for save_logic
 * Fixed bug in spincore pulseblaster hardware that affected only old models
 * Added a netobtain in spincore pulseblaster hardware to speedup remote loading 
+* Added a config option to fastcomtec7887 module to support 7889 model
 
 
 Config changes:
