@@ -111,6 +111,8 @@ class PulseBlasterESRPRO(Base, SwitchInterface, PulserInterface):
     _debug_mode = ConfigOption('debug_mode', default=False)
 
     _use_smart_pulse_creation = ConfigOption('use_smart_pulse_creation', default=False)
+    _config_outputs = ConfigOption('config_outputs', default='4_ch')
+
 
     _channel_delays = ConfigOption('channel_delays', default=[])
 
@@ -265,7 +267,7 @@ class PulseBlasterESRPRO(Base, SwitchInterface, PulserInterface):
         # For waveform creation:
         self._currently_loaded_waveform = ''  # loaded and armed waveform name
 
-        self._current_activation_config = list(self.get_constraints().activation_config['4_ch'])
+        self._current_activation_config = list(self.get_constraints().activation_config[self._config_outputs])
         self._current_activation_config.sort()
 
     def on_deactivate(self):
@@ -1323,6 +1325,7 @@ class PulseBlasterESRPRO(Base, SwitchInterface, PulserInterface):
 
         activation_config = OrderedDict()
         activation_config['4_ch'] = frozenset({'d_ch1', 'd_ch2', 'd_ch3', 'd_ch4'})
+        activation_config['6_ch'] = frozenset({'d_ch1', 'd_ch2', 'd_ch3', 'd_ch4', 'd_ch5', 'd_ch6'})
         activation_config['all'] = frozenset({'d_ch1', 'd_ch2', 'd_ch3', 'd_ch4',
                                               'd_ch5', 'd_ch6', 'd_ch7', 'd_ch8',
                                               'd_ch9', 'd_ch10', 'd_ch11', 'd_ch12',
