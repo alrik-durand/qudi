@@ -54,11 +54,13 @@ class PowerSupply(Base, ProcessControlInterface):
 
         rm = visa.ResourceManager()
         try:
-            self._inst = rm.open_resource(self._address, write_termination='\n', read_termination='\n')
+            self._inst = rm.open_resource(self._address) #  write_termination='\n', read_termination='\n'
         except visa.VisaIOError:
             self.log.error('Could not connect to hardware. Please check the wires and the address.')
 
+        # self._inst.write('*IDN?')
         self.model = self._query('*IDN?').split(',')[2]
+        print(self.model)
 
         self._write("OUTPut:TRACK 0")  # independent mode
 
@@ -81,11 +83,13 @@ class PowerSupply(Base, ProcessControlInterface):
 
     def _write(self, cmd):
         """ Function to write command to hardware"""
-        self._inst.write(cmd)
+        self._inst.write('{}\n'.format(cmd))
+        time.sleep(0.1)
 
     def _query(self, cmd):
         """ Function to query hardware"""
-        return self._inst.query(cmd)
+        self._write(cmd)
+        return self._inst.read()
 
     def set_control_value(self, value):
         """ Set control value, here heating power.
