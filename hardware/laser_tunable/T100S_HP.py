@@ -44,6 +44,7 @@ class TunableLaser(Base, SimpleLaserInterface):
     _wavelength = None
     _wavelength_range = None
     _active_cavity_control = None
+    _coherence_control = None
 
     def __init__(self, **kwargs):
         """ """
@@ -77,6 +78,7 @@ class TunableLaser(Base, SimpleLaserInterface):
         self.set_active_cavity_control(True)
         self.get_wavelength_range()
         self.get_wavelength()
+        self.set_coherence_control(False)
         self.log.info('T100S_HP initialized.')
 
     def on_deactivate(self):
@@ -281,14 +283,12 @@ class TunableLaser(Base, SimpleLaserInterface):
 
 # Define general read write function
 
-    def _write(self, text, wait_for_ready=False):
+    def _write(self, text):
         """ Write to the hardware
 
         @param (str) text: The text to send """
         if self._connection_type == 'GPIB':
             self._gpib_connection.write(text)
-            if wait_for_ready:
-                self._wait_for_ready()
         else:
             self.log.error('Serial connection not implemented.')
 
@@ -359,9 +359,9 @@ class TunableLaser(Base, SimpleLaserInterface):
         return self._wavelength
 
     def set_wavelength(self, value):
-        """ Set laser wavelength
+        """ Set laser wavelength in meter (m)
 
-            @param float value: laser wavelength
+            @param float value: laser wavelength in meter (m)
 
             @return float: new wavelength
         """
@@ -405,12 +405,32 @@ class TunableLaser(Base, SimpleLaserInterface):
     def set_active_cavity_control(self, value):
         """ Set active cavity control state
 
+        This feature is supposed to prevent mode hop while activated
+
         @param (bool) value: State to set """
         self._active_cavity_control = bool(value)
         if value:
             self._write('ACTCTRLON')
         else:
             self._write('ACTCTRLOFF')
+
+    def get_coherence_control(self):
+        """ Return coherence control state
+
+        @return (bool): True if active """
+        return self._coherence_control
+
+    def set_coherence_control(self, value):
+        """ Set coherence control state
+
+        This feature introduce a large broadening of the laser spectral width (from 400 kHz to > 100 MHz if activated)
+
+        @param (bool) value: State to set """
+        self._coherence_control = bool(value)
+        if value:
+            self._write('CTRLON')
+        else:
+            self._write('CTRLOFF')
 
 
 
