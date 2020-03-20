@@ -64,6 +64,7 @@ class PolarizationLogic(GenericLogic):
     sigDataUpdated = QtCore.Signal()
     sigFitUpdated = QtCore.Signal()
     sigStateChanged = QtCore.Signal()
+
     sigMeasurementParametersChanged = QtCore.Signal()
     sigBackgroundParametersChanged = QtCore.Signal()
 
@@ -124,7 +125,7 @@ class PolarizationLogic(GenericLogic):
     def resolution(self, value):
         if 0 < value != self._resolution and self.module_state() != 'locked':
             self._resolution = int(value)
-            self.sigMeasurementParametersChanged.emit()
+            self.model_has_changed.emit(['resolution'])
 
     @property
     def time_per_point(self):
@@ -135,11 +136,11 @@ class PolarizationLogic(GenericLogic):
         counter_time_per_point = 1/self.counterlogic().get_count_frequency()
         if value == 0 or not np.isclose(int(value/counter_time_per_point), value/counter_time_per_point):
             self.log.warning('Polarization measurement time per point must be a multiple of counting resolution')
-            self.sigMeasurementParametersChanged.emit()
+            self.model_has_changed.emit(['time_per_point'])
         else:
             if self.module_state() != 'locked' and self._time_per_point != value:
                 self._time_per_point = value
-                self.sigMeasurementParametersChanged.emit()
+                self.model_has_changed.emit(['time_per_point'])
 
     @property
     def background_value(self):
@@ -149,7 +150,7 @@ class PolarizationLogic(GenericLogic):
     def background_value(self, value):
         if 0 <= value != self._background_value:
             self._background_value = value
-            self.sigBackgroundParametersChanged.emit()
+            self.model_has_changed.emit(['background_value'])
             self.sigDataUpdated.emit()
 
     @property
@@ -161,10 +162,10 @@ class PolarizationLogic(GenericLogic):
         counter_time_per_point = 1 / self.counterlogic().get_count_frequency()
         if value == 0 or not np.isclose(int(value/counter_time_per_point), value/counter_time_per_point):
             self.log.warning('Polarization background measurement time must be a multiple of counting resolution.')
-            self.sigBackgroundParametersChanged.emit()
+            self.model_has_changed.emit(['background_time'])
         elif self._background_time != value:
             self._background_time = value
-            self.sigBackgroundParametersChanged.emit()
+            self.model_has_changed.emit(['background_time'])
 
     @property
     def stop_requested(self):
