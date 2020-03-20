@@ -26,8 +26,6 @@ import pyqtgraph as pg
 
 from core.connector import Connector
 from core.util import units
-from core.gui import connect_trigger_to_function
-from core.gui import connect_view_to_model
 from gui.colordefs import QudiPalettePale as palette
 from gui.guibase import GUIBase
 from qtpy import QtCore
@@ -68,25 +66,28 @@ class Gui(GUIBase):
 
         self.init_plot()
 
+        self.fill_measurement_parameters()
+        self.fill_background_parameters()
         self.update_module_state()
 
         # Connecting user interactions
-        connect_trigger_to_function(self, self._mw.run_Action, 'triggered', self.logic().run)
-        connect_trigger_to_function(self, self._mw.stop_Action, 'triggered', self.logic().abort, QtCore.Qt.DirectConnection)
-        connect_trigger_to_function(self, self._mw.actionSave, 'triggered', self.logic().save)
+        self._mw.run_Action.triggered.connect(self.logic().run)
+        self._mw.stop_Action.triggered.connect(self.logic().abort, QtCore.Qt.DirectConnection)
+        self._mw.actionSave.triggered.connect(self.logic().save)
 
-        connect_view_to_model(self, self._mw.resolution_SpinBox, self.logic(), 'resolution')
-        connect_view_to_model(self, self._mw.time_per_point_SpinBox, self.logic(), 'time_per_point')
-        connect_view_to_model(self, self._mw.background_time_doubleSpinBox, self.logic(), 'background_time')
-        connect_view_to_model(self, self._mw.background_doubleSpinBox, self.logic(), 'background_value')
-        connect_view_to_model(self, self._mw.background_time_doubleSpinBox, self.logic(), 'background_time')
+        self._mw.resolution_SpinBox.editingFinished.connect(self.measurement_parameters_changed)
+        self._mw.time_per_point_SpinBox.editingFinished.connect(self.measurement_parameters_changed)
+        self._mw.background_time_doubleSpinBox.editingFinished.connect(self.background_parameters_changed)
+        self._mw.background_doubleSpinBox.editingFinished.connect(self.background_parameters_changed)
 
-        connect_trigger_to_function(self, self._mw.measure_background_pushButton, 'clicked', self.logic().take_background)
+        self._mw.measure_background_pushButton.clicked.connect(self.logic().take_background)
 
         # Handling signals from the logic
-        connect_trigger_to_function(self, self.logic().sigDataUpdated, None,  self.update_data)
-        connect_trigger_to_function(self, self.logic().sigFitUpdated, None, self.update_fit)
-        connect_trigger_to_function(self, self.logic().sigStateChanged, None, self.update_module_state)
+        self.logic().sigDataUpdated.connect(self.update_data)
+        self.logic().sigFitUpdated.connect(self.update_fit)
+        self.logic().sigStateChanged.connect(self.update_module_state)
+        self.logic().sigMeasurementParametersChanged.connect(self.fill_measurement_parameters)
+        self.logic().sigBackgroundParametersChanged.connect(self.fill_background_parameters)
 
         # Fit settings dialog
         self._fsd = FitSettingsDialog(self.logic().fc)
@@ -105,7 +106,28 @@ class Gui(GUIBase):
 
     def on_deactivate(self):
         """ Deactivate the module """
-        # disconnect signals automatically :)
+        # disconnect signals
+        self._mw.run_Action.triggered.disconnect()
+        self._mw.stop_Action.triggered.disconnect()
+        self._mw.actionSave.triggered.disconnect()
+
+        self._mw.resolution_SpinBox.editingFinished.disconnect()
+        self._mw.time_per_point_SpinBox.editingFinished.disconnect()
+        self._mw.background_time_doubleSpinBox.editingFinished.disconnect()
+        self._mw.background_doubleSpinBox.editingFinished.disconnect()
+
+        self._mw.measure_background_pushButton.clicked.disconnect()
+
+        self.logic().sigDataUpdated.disconnect()
+        self.logic().sigFitUpdated.disconnect()
+        self.logic().sigStateChanged.disconnect()
+        self.logic().sigMeasurementParametersChanged.disconnect()
+        self.logic().sigBackgroundParametersChanged.disconnect()
+
+        self._fsd.sigFitsUpdated.disconnect()
+        self._mw.actionFit_settings.triggered.disconnect()
+        self._mw.do_fit_PushButton.clicked.disconnect()
+
         self._mw.close()
 
     def init_plot(self):
@@ -169,6 +191,39 @@ class Gui(GUIBase):
         self._mw.resolution_SpinBox.setEnabled(not active)
         self._mw.time_per_point_SpinBox.setEnabled(not active)
         self._mw.measure_background_pushButton.setEnabled(not active)
+
+
+    def fill_measurement_parameters(self):
+        """ Update GUI measurement parameters by taking values from the logic """
+        self._mw.resolution_SpinBox.blockSignals(True)
+        self._mw.time_per_point_SpinBox.blockSignals(True)
+
+        self._mw.resolution_SpinBox.setValue(self.logic().resolution)
+        self._mw.time_per_point_SpinBox.setValue(self.logic().time_per_point)
+
+        self._mw.resolution_SpinBox.blockSignals(False)
+        self._mw.time_per_point_SpinBox.blockSignals(False)
+
+    def fill_background_parameters(self):
+        """ Update GUI measurement parameters by taking values from the logic """
+        self._mw.background_doubleSpinBox.blockSignals(True)
+        self._mw.background_time_doubleSpinBox.blockSignals(True)
+
+        self._mw.background_doubleSpinBox.setValue(self.logic().background_value)
+        self._mw.background_time_doubleSpinBox.setValue(self.logic().background_time)
+
+        self._mw.background_doubleSpinBox.blockSignals(False)
+        self._mw.background_time_doubleSpinBox.blockSignals(False)
+
+    def measurement_parameters_changed(self):
+        """ Send measurement parameters changes to logic """
+        self.logic().resolution = self._mw.resolution_SpinBox.value()
+        self.logic().time_per_point = self._mw.time_per_point_SpinBox.value()
+
+    def background_parameters_changed(self):
+        """ Send measurement parameters changes to logic """
+        self.logic().background_value = self._mw.background_doubleSpinBox.value()
+        self.logic().background_time = self._mw.background_time_doubleSpinBox.value()
 
     def do_fit(self):
         """ Command logic to do the fit with the chosen fit function. """
