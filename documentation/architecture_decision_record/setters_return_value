@@ -1,0 +1,77 @@
+# Setters return value
+
+Contents:
+
+* [Summary](#summary)
+  * [Issue](#issue)
+  * [Decision](#decision)
+  * [Status](#status)
+* [Details](#details)
+  * [Assumptions](#assumptions)
+  * [Argument](#argument)
+  * [Implications](#implications)
+* [Notes](#notes)
+
+## Summary
+
+
+### Issue
+
+Interfaces in Qudi should use an homogeneous standard on how the methods behave.
+One point that is arbitrary is what a setter/action method should return.
+
+Multiple options are possible : 
+
+* An integer error code
+* A boolean status
+* The new value of the attribute
+* Nothing
+
+### Decision
+
+Following the principle : "When in doubt, do nothing", we decide the setter should **return nothing**. 
+
+### Status
+
+Pending.
+
+## Details
+
+### Assumptions
+
+An errors should not be a normal behaviour for any type of hardware.
+
+### Argument
+
+A principle of Qudi is to have the logic take care of all the complicated things. If the logic wants to check
+the new value of an attribute or check for error, it should do it explicitly.
+
+### Implications
+
+The logic has to check if the condition are ok to change a value or execute an action.
+As a consequence, the interface must offer the necessary tools for the logic to check if the action is permitted.
+
+If the logic needs to adapt to an eventual error of the hardware, it has to use Python's standard exceptions.
+
+## Notes
+
+### Checks in hardware modules
+
+This decision does not mean hardware module do not have to check for bad parameters.
+It just mean that they should not be obligated because it's the logic's job.
+
+### Before decision status
+
+Before this decision, all behaviour mentioned above where used. But the error status were almost never used by logic.
+Error codes were rarely standardized in interface, leading to hardware specific behaviour.
+
+### Problem of precedence
+
+Some interfaces existing before this architecture decision do not follow it. 
+As interface are a sensible piece of the Qudi software, they remains unchanged for now for retrocompatibility.
+They might be changed in the future.
+
+
+
+
+
