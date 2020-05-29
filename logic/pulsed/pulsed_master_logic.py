@@ -68,7 +68,7 @@ class PulsedMasterLogic(GenericLogic):
 
     # signals for master module (i.e. GUI) coming from PulsedMeasurementLogic
     sigMeasurementDataUpdated = QtCore.Signal()
-    sigTimerUpdated = QtCore.Signal(float, int, float)
+    sigTimerUpdated = QtCore.Signal(float, int, float, float)
     sigFitUpdated = QtCore.Signal(str, np.ndarray, object, bool)
     sigMeasurementStatusUpdated = QtCore.Signal(bool, bool)
     sigPulserRunningUpdated = QtCore.Signal(bool)
