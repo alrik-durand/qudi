@@ -97,6 +97,8 @@ class Cryocon(Base, ProcessInterface, PIDControllerInterface):
         try:
             response = self._inst.query(text)
         except visa.VisaIOError:
+            if self.module_state() != 'idle':
+                return None
             self.log.warning('Cryocon connexion lost, automatic attempt to reconnect...')
             self.open_resource()
             self._inst.query(text)
