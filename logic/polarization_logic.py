@@ -31,7 +31,7 @@ from qtpy import QtCore
 
 
 class PolarizationLogic(GenericLogic):
-    """This logic module rotates polarization and records signal as a function of angle.
+    """ This logic module rotates polarization and records signal as a function of angle.
 
     """
 
@@ -52,6 +52,7 @@ class PolarizationLogic(GenericLogic):
     signal_rotation_finished = QtCore.Signal()
     signal_start_rotation = QtCore.Signal()
 
+    _mode = StatusVar('mode', 'STEPS')
     _resolution = StatusVar('resolution', 90)
     _time_per_point = StatusVar('time_per_point', 1)
     _background_value = StatusVar('background_value', 0)
@@ -67,11 +68,15 @@ class PolarizationLogic(GenericLogic):
     sigMeasurementParametersChanged = QtCore.Signal()
     sigBackgroundParametersChanged = QtCore.Signal()
 
+    _sigStart = QtCore.Signal()
+    _sigNewPoint = QtCore.Signal()
+
     _stop_requested = False
 
     def on_activate(self):
         """ Initialisation performed during activation of the module. """
-        # Connect signals
+
+        self._sigStart.connect(self._start_acquisition)
         self.counterlogic().sigCountStatusChanged.connect(self.abort, QtCore.Qt.DirectConnection)
 
         self.fc = self.fitlogic().make_fit_container('polarization', '1d')
@@ -85,6 +90,7 @@ class PolarizationLogic(GenericLogic):
 
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module. """
+        self._sigStart.disconnect(self._start_acquisition)
         self.counterlogic().sigCountStatusChanged.disconnect()
 
         if len(self.fc.fit_list) > 0:
@@ -122,7 +128,7 @@ class PolarizationLogic(GenericLogic):
 
     @resolution.setter
     def resolution(self, value):
-        if 0 < value != self._resolution and self.module_state() != 'locked':
+        if 0 < value and self.module_state() != 'locked':
             self._resolution = int(value)
             self.sigMeasurementParametersChanged.emit()
 
@@ -179,13 +185,23 @@ class PolarizationLogic(GenericLogic):
         if wait:
             time.sleep(reset_time)
 
-    def run(self):
-        """ Runs a polarization measurement """
-        if self.counterlogic().module_state() == 'idle':
-            self.counterlogic().startCount()
-        self._stop_requested = False
+    def get_status(self):
+        """ Query the hardware for the current status
+
+        @return (str): A sting between 'IDLE', 'MOVING_FORWARD', 'MOVING_BACKWARD', 'MOVING_UNKNOWN'
+        """
+        return self.motor().get_status().__name__
+
+
+    def start_acquisition(self):
+        """ Public method to start an acquisition with the current parameters """
+        if self.module_state() != 'idle':
+            self.log.error('An acquisition is already going.')
         self.module_state.lock()
-        self.sigStateChanged.emit()
+        self.sigStart.emit()
+
+    def _start_acquisiton(self):
+        """ Internal function that start the acquisition with module's thread """
         self._x_axis = np.linspace(start=0, stop=360, num=self.resolution, endpoint=True)
         self._y_axis = np.full(self.resolution, np.nan)
         self.fc.clear_result()
@@ -193,7 +209,22 @@ class PolarizationLogic(GenericLogic):
         self.fit_result = None
         self.sigDataUpdated.emit()
         self.sigFitUpdated.emit()
-        self.reset_motor(wait=True)
+        self.reset_motor()
+
+    def _do_point(self):
+        """ This internal methods wait for the motor to be stationary then launch a point acquisition """
+        if self.motor()
+
+
+
+    def run(self):
+        """ Runs a polarization measurement """
+        if self.counterlogic().module_state() == 'idle':
+            self.counterlogic().startCount()
+        self._stop_requested = False
+
+        self.sigStateChanged.emit()
+
         bin_per_step = int(self.counterlogic().get_count_frequency() * self.time_per_point)
 
         for i, x in enumerate(self._x_axis):
