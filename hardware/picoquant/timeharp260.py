@@ -18,45 +18,20 @@ along with Qudi. If not, see <http://www.gnu.org/licenses/>.
 Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
 top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
 """
-
-import ctypes
 import numpy as np
-import time
-from qtpy import QtCore
-import os
+
 
 from core.module import Base
-from core.configoption import ConfigOption
-from core.util.modules import get_main_dir
-from core.util.mutex import Mutex
 from interface.slow_counter_interface import SlowCounterInterface
 from interface.slow_counter_interface import SlowCounterConstraints
 from interface.slow_counter_interface import CountingMode
 from interface.fast_counter_interface import FastCounterInterface
 from core.interface import interface_method
 
-# =============================================================================
-# Wrapper around the TH260Lib64.DLL. The current file is based on the header files
-# 'thdefin.h', 'thlib.h' and 'errorcodesTH.h'. The 'thdefin.h' contains all the
-# constants and 'thlib.h' contains all the functions exported within the dll
-# file. 'errorcodesTH.h' contains the possible error messages of the device.
-#
-# The wrappered commands are based on the PHLib Version 3.0. For further
-# information read the manual
-#       'THLib - Programming Library for Custom Software Development'
-# which can be downloaded from the PicoQuant homepage.
-# =============================================================================
-
 
 class TimeHarp260(Base, SlowCounterInterface, FastCounterInterface):
     """ Hardware class to control the TimeHarp 260 from PicoQuant.
     """
-
-
-
-    def __init__(self, config, **kwargs):
-        super().__init__(config=config, **kwargs)
-
 
     def on_activate(self):
         """ Activate and establish the connection to Timeharp and initialize.
