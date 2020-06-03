@@ -57,7 +57,7 @@ class MotorInterface(metaclass=InterfaceMetaclass):
         pass
 
     @abstract_interface_method
-    def move_rel(self, axis, value):
+    def move_relative(self, axis, value):
         """ Moves stage in given direction (relative movement)
 
         @param (str) axis : Label of the axis
@@ -68,7 +68,7 @@ class MotorInterface(metaclass=InterfaceMetaclass):
         pass
 
     @abstract_interface_method
-    def move_abs(self, axis, value):
+    def move_absolute(self, axis, value):
         """ Moves stage to absolute position (absolute movement)
 
         @param (str) axis : Label of the axis
@@ -86,7 +86,7 @@ class MotorInterface(metaclass=InterfaceMetaclass):
         pass
 
     @abstract_interface_method
-    def get_pos(self, axis):
+    def get_position(self, axis):
         """ Gets current position of an axis
 
         @param (str) axis : Label of the axis
