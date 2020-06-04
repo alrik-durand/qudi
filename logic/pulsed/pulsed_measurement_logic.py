@@ -1278,9 +1278,6 @@ class PulsedMeasurementLogic(GenericLogic):
         if save_pulsed_measurement:
             self._save_measurement_pulse_data(filepath=filepath, filestamp=timestamp, tag=tag, save_figure=save_figure,
                                               with_error=with_error)
-        if save_timetrace:
-            self._save_timetrace(filepath=filepath, filestamp=timestamp, tag=tag, save_figure=save_figure)
-
         return filepath
 
     def _save_raw_data_timetrace(self, filepath=None, filestamp=None, tag=None):
@@ -1596,124 +1593,6 @@ class PulsedMeasurementLogic(GenericLogic):
                                    filepath=filepath, filelabel=filelabel, filetype='text',
                                    delimiter='\t', plotfig=fig)
 
-    def _save_timetrace(self, filepath=None, filestamp=None, tag=None, save_figure=True):
-        """ Save measurement pulse data """
-        filelabel = 'timetrace' if not tag else tag + '_timetrace'
-        filepath = self.savelogic().get_path_for_module('PulsedMeasurement') if not filepath else filepath
-        timestamp = datetime.datetime.now() if not filestamp else filestamp
-
-        # Save data with easily accessible names
-        data = OrderedDict()
-        data['x'], data['y'] = self.timetrace_data
-
-        # Save parameters with easily accessible names
-        parameters = OrderedDict()
-        parameters['measurement_time'] = self.__elapsed_time
-        parameters['sweeps'] = self.__elapsed_sweeps
-        parameters['rebinning'] = self.timetrace_analysis_settings['rebinning']
-        parameters['window_start'] = self.timetrace_analysis_settings['start']
-        parameters['window_end'] = self.timetrace_analysis_settings['end']
-        parameters['window_origin'] = self.timetrace_analysis_settings['origin']
-        parameters['binwidth'] = self.__fast_counter_binwidth * self.timetrace_analysis_settings['rebinning']
-        parameters['record_length'] = self.__fast_counter_record_length
-        parameters['is_gated'] = self.fast_counter_settings['is_gated']
-
-        if save_figure:
-            plt.style.use(self.savelogic().mpl_qd_style)
-
-            prop_cycle = self.savelogic().mpl_qd_style['axes.prop_cycle']
-            colors = {}
-            for i, color_setting in enumerate(prop_cycle):
-                colors[i] = color_setting['color']
-
-            # scale the axis for plotting
-            x_scaled_float = units.ScaledFloat(np.max(data['x']))
-            y_scaled_float = units.ScaledFloat(np.max(data['y']))
-
-            fig, ax = plt.subplots()
-            ax.plot(data['x'] / x_scaled_float.scale_val,
-                    data['y'] / y_scaled_float.scale_val,
-                    color=colors[0], linestyle='-', marker='None', linewidth=0.5, label='data')
-
-            # commented because it mess up the fit info
-            # compute back the right axis in counts [#]
-            # sweeps = self.elapsed_sweeps
-            # bin_width = self.fast_counter_settings['bin_width']
-            # rebinning = self.timetrace_analysis_settings['rebinning']
-            # factor = (sweeps * (bin_width * rebinning)) * y_scaled_float.scale_val
-            # if factor != 0:
-            #     ax_counts = ax.twinx()
-            #     y1, y2 = ax.get_ylim()
-            #     ax_counts.set_ylim(y1*factor, y2*factor)
-            #     ax_counts.set_ylabel('Counts [#]')
-
-            # Do not include fit curve if there is no fit calculated.
-            if self.signal_fit_timetrace_data.size != 0 and np.sum(self.signal_fit_timetrace_data[1]) > 0:
-                ax.plot(self.signal_fit_timetrace_data[0] / x_scaled_float.scale_val,
-                        self.signal_fit_timetrace_data[1] / y_scaled_float.scale_val,
-                        color=colors[2], marker='None', linewidth=1.5, label='fit')
-
-                # Parameters for the text plot:
-                # The position of the text annotation is controlled with the
-                # relative offset in x direction and the relative length factor
-                # rel_len_fac of the longest entry in one column
-                rel_offset = 0.02
-                rel_len_fac = 0.011
-                entries_per_col = 24
-
-                # create the formatted fit text:
-                if hasattr(self.timetrace_fit_result, 'result_str_dict'):
-                    result_str = units.create_formatted_output(self.timetrace_fit_result.result_str_dict)
-                else:
-                    result_str = ''
-                # do reverse processing to get each entry in a list
-                entry_list = result_str.split('\n')
-                # slice the entry_list in entries_per_col
-                chunks = [entry_list[x:x + entries_per_col] for x in range(0, len(entry_list), entries_per_col)]
-
-                is_first_column = True  # first entry should contain header or \n
-
-                for column in chunks:
-
-                    max_length = max(column, key=len)  # get the longest entry
-                    column_text = ''
-
-                    for entry in column:
-                        column_text += entry + '\n'
-
-                    column_text = column_text[:-1]  # remove the last new line
-
-                    heading = ''
-                    if is_first_column:
-                        heading = 'Fit results:'
-
-                    column_text = heading + '\n' + column_text
-
-                    ax.text(1.00 + rel_offset, 0.99, column_text,
-                             verticalalignment='top',
-                             horizontalalignment='left',
-                             transform=ax.transAxes,
-                             fontsize=12)
-
-                    # the rel_offset in position of the text is a linear function
-                    # which depends on the longest entry in the column
-                    rel_offset += rel_len_fac * len(max_length)
-
-                    is_first_column = False
-
-            ax.set_xlabel('Time [{}s]'.format(x_scaled_float.scale))
-            ax.set_ylabel('Photoluminescence [{}c/s]'.format(y_scaled_float.scale))
-
-            fig.tight_layout()
-            ax.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3, ncol=2,
-                       mode="expand", borderaxespad=0.)
-        else:
-            fig = None
-
-        self.savelogic().save_data(data, timestamp=timestamp,
-                                   parameters=parameters, fmt='%.15e',
-                                   filepath=filepath, filelabel=filelabel, filetype='text',
-                                   delimiter='\t', plotfig=fig)
 
     def _compute_alt_data(self):
         """
