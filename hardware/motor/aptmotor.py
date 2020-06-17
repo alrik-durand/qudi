@@ -603,6 +603,7 @@ class APTStage(Base, MotorInterface, SwitchInterface):
     Tested successfully with :
         - TDC001
         - KDC001
+        - MFF101
 
     """
 
