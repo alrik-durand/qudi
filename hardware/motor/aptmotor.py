@@ -41,7 +41,6 @@ HARDWARE_TYPES = {'BSC001': 11,  # 1 Ch benchtop stepper driver
                   'LTSXXX': 42,  # LTS300/LTS150 Long Travel Integrated Driver/Stages
                   'L490MZ': 43,  # L490MZ Integrated Driver/Labjack
                   'BBD10X': 44,  # 1/2/3 Ch benchtop brushless DC servo driver
-                  'MFF101': 48  # Flipper mirror
                   }
 
 ERROR_CODES =    {10000: 'An unknown Server error has occurred. ',
@@ -169,7 +168,7 @@ STATUS_CODE =     {1: '0x00000001, 1, forward hardware limit switch is active. '
 
 
 class APTDevice:
-    """ General class for APT devices, motor or flipper """
+    """ General class for APT devices, motor or else """
     def __init__(self, dll, serial_number):
         """
         @param (ctypes.WinDLL) dll: a handle to the initialized dll
@@ -514,65 +513,10 @@ class APTMotor(APTDevice):
 # ==============================================================================
 
 
-class APTFlipper(APTDevice):
-    """ Class to control a single Thorlabs APT flipper """
-
-    def __init__(self, dll, serial_number):
-        super().__init__(dll, serial_number)
-
-    def get_switch_state(self):
-        """ Gives state of switch.
-
-        @return bool: True if on, False if off, None on error
-        """
-        bits = self.get_status_bits()
-        return self._test_bit(bits, 1)
-
-    def switch_on(self):
-        """ Set the state to on
-
-        @return (bool): True if succeeds, False otherwise
-        """
-        status = self.get_status_bits()
-        if self._test_bit(status, 4):
-            raise Exception('Flipper already moving.')
-            return False
-        try:
-            self._dll.MOT_MoveJog(self._serial_number, 2)
-            return True
-        except:
-
-            return False
-
-    def switch_off(self):
-        """ Set the state to off (channel 2)
-
-        @return (bool): True if succeeds, False otherwise
-        """
-        status = self.get_status_bits()
-        if self._test_bit(status, 4):
-            raise Exception('Flipper already moving.')
-            return False
-        try:
-            self._dll.MOT_MoveJog(self._serial_number, 1)
-            return True
-        except:
-            raise Exception('Could not switch flipper.')
-            return False
-
-    def get_switch_time(self):
-        """ Give switching time for switch.
-
-          @return (float): time needed for switch state change
-        """
-        return 500e-3  # 500 ms to 2 800 ms #todo: ask the hardware
-
-
-class APTStage(Base, MotorInterface, SwitchInterface):
+class APTStage(Base, MotorInterface):
     """ Module class to interface Thorlabs APT dll.
 
     This module interface multiples motor axis, rotation or linear.
-    This module also can interface flippers like MFF101 with the SwitchInterface
 
     A config file entry for a single-axis rotating half-wave-plate stage would look like:
 
@@ -595,15 +539,9 @@ class APTStage(Base, MotorInterface, SwitchInterface):
         maximum_velocity: [None, 10]
         acceleration_max: [None, 10]
 
-    apt_stage:
-        module.Class: 'motor.aptmotor.APTStage'
-        dll_path: 'C:\\Program Files\\Thorlabs\\APT\\APT Server\\APT.dll'
-        flippers: [27500136]
-
     Tested successfully with :
         - TDC001
         - KDC001
-        - MFF101
 
     """
 
@@ -617,8 +555,6 @@ class APTStage(Base, MotorInterface, SwitchInterface):
     maximum_positions = ConfigOption('maximum_positions', default=None)  # None or a list of explicitly defined maximum
     maximum_acceleration = ConfigOption('maximum_acceleration', default=None)  # None or a list of maximum acceleration
     backlash = ConfigOption('backlash', default=None)  # None or a list of backlash
-
-    flippers = ConfigOption('flippers', default=[])  # A list of flipper serial numbers
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -661,13 +597,6 @@ class APTStage(Base, MotorInterface, SwitchInterface):
                 axis.set_backlash(self.backlash[i])
 
             self._axis_dict[label] = axis
-
-        # The references to the different flippers are stored in this list:
-        self._flipper_list = []
-        for i, serial_number in enumerate(self.flippers):
-            flipper = APTFlipper(self._dll, serial_number)
-            flipper.initialize_hardware_device()
-            self._flipper_list.append(flipper)
 
     def on_deactivate(self):
         """ Disconnect from hardware and clean up.
@@ -919,63 +848,3 @@ class APTStage(Base, MotorInterface, SwitchInterface):
                         'exceeds the limts [{2},{3}] ! Command is ignored!'
                         ''.format(label_axis, desired_vel, constr['vel_min'], constr['vel_max'])
                     )
-
-    # ################# SwitchInterface ######################
-    def getNumberOfSwitches(self):
-        """ Gives the number of switches connected to this hardware.
-
-          @return (int: number of swiches on this hardware
-        """
-        return len(self._flipper_list)
-
-    def getSwitchState(self, switchNumber=0):
-        """ Get the state of the switch.
-
-          @param int switchNumber: index of switch
-
-          @return bool: True if On, False if Off
-        """
-        return self._flipper_list[switchNumber].get_switch_state()
-
-    def getCalibration(self, switchNumber, state):
-        """ Get calibration parameter for switch.
-
-        Function not used by this module
-        """
-        return 0
-
-    def setCalibration(self, switchNumber, state, value):
-        """ Set calibration parameter for switch.
-
-        Function not used by this module
-        """
-        return True
-
-    def switchOn(self, switchNumber):
-        """ Set the state to on (channel 1)
-
-          @param int switchNumber: number of switch to be switched
-
-          @return bool: True if succeeds, False otherwise
-        """
-        self._flipper_list[switchNumber].switch_on()
-        return True
-
-    def switchOff(self, switchNumber):
-        """ Set the state to off (channel 2)
-
-          @param int switchNumber: number of switch to be switched
-
-          @return bool: True if suceeds, False otherwise
-        """
-        self._flipper_list[switchNumber].switch_off()
-        return True
-
-    def getSwitchTime(self, switchNumber):
-        """ Give switching time for switch.
-
-          @param int switchNumber: number of switch
-
-          @return float: time needed for switch state change
-        """
-        return self._flipper_list[switchNumber].get_switch_time()
