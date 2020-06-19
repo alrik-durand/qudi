@@ -32,9 +32,7 @@ from qtpy import QtCore
 
 
 class PIDLogic(GenericLogic):
-    """
-    Control a process via software PID.
-    """
+    """ Control a process via software PID. """
 
     # declare connectors
     controller = Connector(interface='PIDControllerInterface')
@@ -51,6 +49,13 @@ class PIDLogic(GenericLogic):
 
     # signals
     sigUpdateDisplay = QtCore.Signal()
+    sigSetpointChanged = QtCore.Signal()
+    sigKPChanged = QtCore.Signal()
+    sigKIChanged = QtCore.Signal()
+    sigKDChanged = QtCore.Signal()
+    sigManualValueChanged = QtCore.Signal()
+    sigEnabledChanged = QtCore.Signal()
+
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -110,16 +115,15 @@ class PIDLogic(GenericLogic):
         self.history[2, -1] = self.controller().get_setpoint()
         self.sigUpdateDisplay.emit()
         if self.module_state() == 'running':
-            self.timer.start(self.timestep*1e3)
+            self.timer.start(int(self.timestep*1e3))
         if self.save_to_metadata:
-            self.savelogic().update_additional_parameters({'{}'.format(self.pid_name): self.controller().get_setpoint()})
+            self.savelogic().update_additional_parameters({'{}'.format(self.pid_name):
+                                                           self.controller().get_setpoint()})
             self.savelogic().update_additional_parameters({'{}_measured'.format(self.pid_name):
                                                            self.controller().get_process_value()})
             self.savelogic().update_additional_parameters({'{}_control_variable'.format(self.pid_name):
                                                            self.controller().get_control_value()})
             self.savelogic().update_additional_parameters({'{}_last_update'.format(self.pid_name): time.time()})
-
-
 
     def get_saving_state(self):
         """ Return whether we are saving data
@@ -154,69 +158,71 @@ class PIDLogic(GenericLogic):
         """
         return self.controller().get_kp()
 
-    def set_kp(self, kp):
-        """ Set the proportional constant of the PID controller.
-
-            @prarm float kp: proportional constant of PID controller
-        """
-        return self.controller().set_kp(kp)
+    def set_kp(self, value):
+        """ Set the proportional constant of the PID controller. """
+        self.controller().set_kp(value)
+        self.sigKPChanged.emit()
 
     def get_ki(self):
         """ Get the integration constant of the PID controller
 
-            @return float: integration constant of the PID controller
+            @return (float): integration constant of the PID controller
         """
         return self.controller().get_ki()
 
-    def set_ki(self, ki):
+    def set_ki(self, value):
         """ Set the integration constant of the PID controller.
 
-            @param float ki: integration constant of the PID controller
+            @param (float) value: integration constant of the PID controller
         """
-        return self.controller().set_ki(ki)
+        self.controller().set_ki(value)
+        self.sigKIChanged.emit()
 
     def get_kd(self):
         """ Get the derivative constant of the PID controller
 
-            @return float: the derivative constant of the PID controller
+            @return (float): the derivative constant of the PID controller
         """
         return self.controller().get_kd()
 
-    def set_kd(self, kd):
+    def set_kd(self, value):
         """ Set the derivative constant of the PID controller
 
-            @param float kd: the derivative constant of the PID controller
+            @param (float) value: the derivative constant of the PID controller
         """
-        return self.controller().set_kd(kd)
+        self.controller().set_kd(value)
+        self.sigKDChanged.emit()
 
     def get_setpoint(self):
         """ Get the current setpoint of the PID controller.
 
-            @return float: current set point of the PID controller
+            @return (float): current set point of the PID controller
         """
-        return self.history[2, -1]
+        return self.controller().get_setpoint()
 
-    def set_setpoint(self, setpoint):
+    def set_setpoint(self, value):
         """ Set the current setpoint of the PID controller.
 
-            @param float setpoint: new set point of the PID controller
+            @param (float) value: new set point of the PID controller
         """
-        self.controller().set_setpoint(setpoint)
+        self.controller().set_setpoint(value)
+        self.sigSetpointChanged.emit()
 
     def get_manual_value(self):
         """ Return the control value for manual mode.
 
-            @return float: control value for manual mode
+            @return (float): control value for manual mode
         """
         value = self.controller().get_manual_value()
         return value if value is not None else 0
 
-    def set_manual_value(self, manualvalue):
+    def set_manual_value(self, value):
         """ Set the control value for manual mode.
 
-            @param float manualvalue: control value for manual mode of controller
+            @param (float) value: control value for manual mode of controller
         """
-        return self.controller().set_manual_value(manualvalue)
+        self.controller().set_manual_value(value)
+        self.sigManualValueChanged.emit()
 
     def get_enabled(self):
         """ See if the PID controller is controlling a process.
@@ -225,12 +231,13 @@ class PIDLogic(GenericLogic):
         """
         return self.controller().get_enabled()
 
-    def set_enabled(self, enabled):
+    def set_enabled(self, value):
         """ Set the state of the PID controller.
 
-            @param bool enabled: desired state of PID controller
+            @param (bool) value: desired state of PID controller
         """
-        self.controller().set_enabled(enabled)
+        self.controller().set_enabled(value)
+        self.sigEnabledChanged.emit()
 
     def get_control_limits(self):
         """ Get the minimum and maximum value of the control actuator.
@@ -246,7 +253,7 @@ class PIDLogic(GenericLogic):
 
             This function does nothing, control limits are handled by the control module
         """
-        return self.controller().set_control_limits(limits)
+        self.controller().set_control_limits(limits)
 
     def get_pv(self):
         """ Get current process input value.
