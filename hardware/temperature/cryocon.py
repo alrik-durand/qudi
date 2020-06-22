@@ -33,9 +33,13 @@ from interface.process_interface import ProcessInterface
 from interface.pid_controller_interface import PIDControllerInterface
 
 
-class Cryocon(Base, ProcessInterface, PIDControllerInterface):
-    """
-    Main class for the Cryo-Con hardware
+    """ Main class for the Cryo-Con hardware
+
+    Cryocon is a temperature controller with a screen and buttons to regulate one or multiple channels. This module adds
+    control via Qudi with the PIDControllerInterface.
+
+    Tested with models :
+     - 22B
 
     Example config:
 
@@ -148,96 +152,18 @@ class Cryocon(Base, ProcessInterface, PIDControllerInterface):
 
 # PID controller interface
 
-    def get_kp(self, channel=None):
-        """ Return the of the kp PID """
-        channel = channel if channel is not None else self._main_channel
-        loop = 1 if channel == 'A' else 2
-        try:
-            text = 'loop {}:pgain?'.format(loop)
-            value = float(self._query(text)[:-1])
-        except:
-            value = np.NaN
-        return value
-
-    def set_kp(self, kp):
-        pass  # Not implemented
-
-    def get_ki(self, channel=None):
-        """ Return the of the ki PID """
-        channel = channel if channel is not None else self._main_channel
-        loop = 1 if channel == 'A' else 2
-        try:
-            text = 'loop {}:igain?'.format(loop)
-            value = float(self._query(text)[:-1])
-        except:
-            value = np.NaN
-        return value
-
-    def set_ki(self, ki):
-        pass  # Not implemented
-
-    def get_kd(self, channel=None):
-        """ Return the of the kd PID """
-        channel = channel if channel is not None else self._main_channel
-        loop = 1 if channel == 'A' else 2
-        try:
-            text = 'loop {}:dgain?'.format(loop)
-            value = float(self._query(text)[:-1])
-        except:
-            value = np.NaN
-        return value
-
-    def set_kd(self, kd):
-        pass  # Not implemented
-
-    def get_setpoint(self):
-        """ Get temperature setpoint of the PID"""
+    def get_control_value(self):
+        """ Get the value of the controlled process variable """
         return self.get_setpoint_temperature()
-
-    def set_setpoint(self, setpoint):
-        """ Set temperature setpoint of the PID"""
-        self.set_temperature(setpoint)
-
-    def get_manual_value(self):
-        pass  # Not implemented
-
-    def set_manual_value(self, manualvalue):
-        pass  # Not implemented
-
-    def get_enabled(self):
-        """ Get if the heating is on or not"""
-        return self._query('control?')[:-2] == 'ON'  # 'ON \r'
-
-    def set_enabled(self, enabled):
-        """ Set if the heating is on or not"""
-        if enabled:
-            self.control()
-        else:
-            self.stop()
-
-    def get_control_limits(self):
-        pass
-
-    def set_control_limits(self, limits):
-        pass
-
-    def get_control_value(self, channel=None):
-        channel = channel if channel is not None else self._main_channel
-        loop = 1 if channel == 'A' else 2
-        try:
-            text = 'loop {}:htrread?'.format(loop)
-            value = float(self._query(text)[:-2])  # '0.00%\r'
-        except:
-            value = np.NaN
-        max_power = 50 if loop == 1 else 25  # Cryocon loop 1 max range is 50 W, loop 2 is  25 W
-        return value*max_power
 
     def get_control_unit(self):
         """ Return the unit that the value is set in as a tuple of ('abreviation', 'full unit name') """
         return 'W', 'Watt'
 
     def get_control_limit(self):
-        pass
+        """ Return limits within which the controlled value can be set as a tuple of (low limit, high limit)
+        """
+        return 0, 350
 
     def get_extra(self):
         pass
