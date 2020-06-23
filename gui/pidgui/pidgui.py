@@ -98,19 +98,33 @@ class PIDGui(GUIBase):
         # Connect views to models
         self.mapper = Mapper()
         self.mapper.add_mapping(self._mw.P_DoubleSpinBox, self.pidlogic(), 'get_kp',
-                                model_property_notifier=self.pidlogic().sigKPChanged, model_setter='set_kp')
+                                widget_property_name='value_float',
+                                model_property_notifier=self.pidlogic().sigKPChanged,
+                                model_setter='set_kp',
+                                widget_property_notifier=self._mw.P_DoubleSpinBox.editingFinished)
         self.mapper.add_mapping(self._mw.I_DoubleSpinBox, self.pidlogic(), 'get_ki',
-                                model_property_notifier=self.pidlogic().sigKIChanged, model_setter='set_ki')
+                                widget_property_name='value_float',
+                                model_property_notifier=self.pidlogic().sigKIChanged,
+                                model_setter='set_ki',
+                                widget_property_notifier=self._mw.I_DoubleSpinBox.editingFinished)
         self.mapper.add_mapping(self._mw.D_DoubleSpinBox, self.pidlogic(), 'get_kd',
-                                model_property_notifier=self.pidlogic().sigKDChanged, model_setter='set_kd')
+                                widget_property_name='value_float',
+                                model_property_notifier=self.pidlogic().sigKDChanged,
+                                model_setter='set_kd',
+                                widget_property_notifier=self._mw.D_DoubleSpinBox.editingFinished)
 
         self.mapper.add_mapping(self._mw.setpointDoubleSpinBox, self.pidlogic(), 'get_setpoint',
-                                model_property_notifier=self.pidlogic().sigSetpointChanged, model_setter='set_setpoint')
-        self.mapper.add_mapping(self._mw.manualDoubleSpinBox, self.pidlogic(), 'get_manual_value',
+                                widget_property_name='value_float',
+                                model_property_notifier=self.pidlogic().sigSetpointChanged,
+                                model_setter='set_setpoint',
+                                widget_property_notifier=self._mw.setpointDoubleSpinBox.editingFinished)
+        self.mapper.add_mapping(self._mw.manualDoubleSpinBox, self.pidlogic(), 'get_manual_value', widget_property_name='value_float',
                                 model_property_notifier=self.pidlogic().sigManualValueChanged,
-                                model_setter='set_manual_value')
+                                model_setter='set_manual_value',
+                                widget_property_notifier=self._mw.manualDoubleSpinBox.editingFinished)
         self.mapper.add_mapping(self._mw.pidEnabledCheckBox, self.pidlogic(), 'get_enabled',
-                                model_property_notifier=self.pidlogic().sigEnabledChanged, model_setter='set_enabled')
+                                model_property_notifier=self.pidlogic().sigEnabledChanged,
+                                model_setter='set_enabled')
 
         # make correct button state
         self._mw.start_control_Action.setChecked(self.pidlogic().get_enabled())
