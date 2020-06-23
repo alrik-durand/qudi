@@ -982,6 +982,8 @@ class ScienDSpinBox(QtWidgets.QAbstractSpinBox):
         """
         return not value == value
 
+    value_float = QtCore.Property(float, fget=value, fset=setValue, notify=valueChanged)
+
 
 class ScienSpinBox(QtWidgets.QAbstractSpinBox):
     """
