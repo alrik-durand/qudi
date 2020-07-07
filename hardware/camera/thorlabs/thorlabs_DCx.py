@@ -288,8 +288,9 @@ class CameraThorlabs(Base, CameraInterface):
         if self.module_state() == 'idle':
             return True
         elif self._acquiring and not self._live:
-
-        return False
+            return False
+        else:
+            return True
 
     def set_gain(self, gain):
         """ Set the gain """
