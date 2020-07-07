@@ -103,9 +103,7 @@ class CameraThorlabs(Base, CameraInterface):
             return True
 
     def _load_dll(self):
-        """
-        Load the dll for the camera
-        """
+        """ Load the dll for the camera """
         try:
             if platform.system() == "Windows":
                 if platform.architecture()[0] == "64bit":
@@ -121,9 +119,7 @@ class CameraThorlabs(Base, CameraInterface):
             self.log.error("Can not log Thorlabs DLL.")
 
     def _connect_camera(self):
-        """
-        Connect to the camera and get basic info on it
-        """
+        """ Connect to the camera and get basic info on it """
         number_of_cameras = ctypes.c_int(0)
         self._dll.is_GetNumberOfCameras(byref(number_of_cameras))
         if number_of_cameras.value < 1:
@@ -139,9 +135,7 @@ class CameraThorlabs(Base, CameraInterface):
             self.log.debug('Connected to camera : {}'.format(str(self._sensor_info.strSensorName)))
 
     def _init_camera(self):
-        """
-        Set the parameters of the camera for our usage
-        """
+        """ Set the parameters of the camera for our usage """
         # Color mode
         code = self._dll.is_SetColorMode(self._camera_handle, ctypes.c_int(IS_SET_CM_Y8))
         self._check_error(code, "Could set color mode IS_SET_CM_Y8")
@@ -174,9 +168,7 @@ class CameraThorlabs(Base, CameraInterface):
         self.set_gain(self._gain)
 
     def set_image_size(self, width=None, height=None):
-        """
-        Set the size of the image, here the camera will acquire only part of the image from a given position
-        """
+        """ Set the size of the image, here the camera will acquire only part of the image from a given position """
         if width is not None:
             width = int(width)
             self._check_int_range(width, 1, self._sensor_info.nMaxWidth, 'Can not set image width')
@@ -190,9 +182,7 @@ class CameraThorlabs(Base, CameraInterface):
         return self._check_error(code, "Could not set image size")
 
     def set_image_position(self, pos_x, pos_y):
-        """
-        Set image position reference coordinate
-        """
+        """ Set image position reference coordinate """
         if pos_x is not None:
             pos_x = int(pos_x)
             self._check_int_range(pos_x, 0, self._sensor_info.nMaxWidth-1, 'Can not set image position x')
@@ -205,56 +195,42 @@ class CameraThorlabs(Base, CameraInterface):
         code = self._dll.is_SetImagePos(self._camera_handle, ctypes.c_int(self._pos_x), ctypes.c_int(self._pos_y))
         return self._check_error(code, "Could not set image position")
 
-
     def on_deactivate(self):
-        """
-        Deinitialisation performed during deactivation of the module.
-        """
+        """ Deinitialisation performed during deactivation of the module. """
         self._dll.is_ExitCamera(self._camera_handle)
         self._acquiring = False
         self._live = False
 
     def get_name(self):
-        """
-        Return a name for the camera
-        """
+        """ Return a name for the camera """
         return self._sensor_info.strSensorName
 
     def get_size(self):
-        """
-        Return the max size of the camera
-        """
+        """ Return the max size of the camera """
         return self._width, self._height
 
     def support_live_acquisition(self):
-        """
-        Return whether or not this camera support live acquisition
-        """
+        """ Return whether or not this camera support live acquisition """
         return True
 
     def start_live_acquisition(self):
-        """
-        Set the camera in live mode
-        """
-        if self.get_ready_state():
-            self._acquiring = True
+        """ Set the camera in live mode """
+        if self.module_state() == 'idle':
+            self.module_state.run()
             self._live = True
             code = self._dll.is_CaptureVideo(self._camera_handle, c_int(IS_DONT_WAIT))
             no_error = self._check_error(code, "Could not start live acquisition")
             if not no_error:
-                self._acquiring = False
-                self._live = False
-                return False
-            return True
+                self.module_state.stop()
+            return no_error
         else:
             return False
 
     def start_single_acquisition(self):
-        """
-        Start the acquisition of a single image
-        """
-        if self.get_ready_state():
-            self._acquiring = True
+        """ Start the acquisition of a single image """
+        if self.module_state() == 'idle':
+            self.module_state.run()
+            self._live = False
             code = self._dll.is_FreezeVideo(self._camera_handle, c_int(IS_WAIT))
             self._acquiring = False
             return self._check_error(code, "Could not start single acquisition")
@@ -262,9 +238,7 @@ class CameraThorlabs(Base, CameraInterface):
             return False
 
     def stop_acquisition(self):
-        """
-        Stop live acquisition
-        """
+        """ Stop live acquisition """
         no_error = True
         if self._acquiring:
             code = self._dll.is_StopLiveVideo(self._camera_handle, c_int(IS_FORCE_VIDEO_STOP))
@@ -274,9 +248,7 @@ class CameraThorlabs(Base, CameraInterface):
         return no_error
 
     def get_acquired_data(self):
-        """
-        Return last acquired data from the dll
-        """
+        """ Return last acquired data from the dll """
         # Allocate memory for image:
         img_size = self._width * self._height
         c_array = ctypes.c_char * img_size
@@ -292,14 +264,12 @@ class CameraThorlabs(Base, CameraInterface):
         return img_array
 
     def get_bit_depth(self):
-        """
-        Return the bit depth of the image
-        """
+        """ Return the bit depth of the image """
         return self._bit_depth
 
     def set_exposure(self, time):
-        """
-        Set the exposure in second
+        """ Set the exposure in second
+
         Return the new exposure
         """
         exp = c_double(time * 1e3)  # in ms
@@ -310,28 +280,22 @@ class CameraThorlabs(Base, CameraInterface):
         return self._exposure
 
     def get_exposure(self):
-        """
-        Return current exposure
-        """
+        """ Return current exposure """
         return self._exposure
 
     def get_ready_state(self):
-        """
-        Return whether or not the camera is ready for an acquisition
-        """
-        if self.module_state()!='idle':
-            return False
-        return not self._acquiring
+        """ Return whether or not the camera is ready for an acquisition """
+        if self.module_state() == 'idle':
+            return True
+        elif self._acquiring and not self._live:
+
+        return False
 
     def set_gain(self, gain):
-        """
-        Set the gain
-        """
+        """ Set the gain """
         pass
 
     def get_gain(self):
-        """
-        Get the gain
-        """
+        """ Get the gain """
         return self._gain
 
