@@ -200,11 +200,11 @@ class LaserLogic(GenericLogic):
 
     def get_power(self):
         """ Get laser output power. """
-        self._laser.get_power()
+        return  self._laser.get_power()
 
     def get_power_setpoint(self):
         """ Get laser power setpoint """
-        self._laser.get_power_setpoint()
+        return self._laser.get_power_setpoint()
 
     @QtCore.Slot(float)
     def set_current(self, current):
