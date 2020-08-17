@@ -34,7 +34,7 @@ from gui.colordefs import QudiPalettePale as palette
 from gui.fitsettings import FitSettingsDialog
 
 
-class MainWindow(QtWidgets.QWidget):
+class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         # Get the path to the *.ui file
         this_dir = os.path.dirname(__file__)
@@ -60,6 +60,7 @@ class Main(GUIBase):
     def on_deactivate(self):
         """ Deactivate the GUI. """
         self._mw.close()
+        self.logic().sigFitUpdated.disconnect(self.fit_data_updated)
 
     def show(self):
         """ Make main window visible and put it above all other windows. """
@@ -126,22 +127,24 @@ class Main(GUIBase):
 
         self.ta_window_image_fit = pg.PlotDataItem(pen=palette.c3)
 
-        self._mw.fit_method_comboBox.setFitFunctions(self._fsd.currentFits)
-
         # Initialize from logic values
         self.settings_updated(self.logic().settings)
         self.update_window()
 
-    @QtCore.Slot(str, np.ndarray, object, str)
-    def fit_data_updated(self, fit_method, fit_data, result, fit_type):
-        """
+        self._mw.fit_method_comboBox.setFitFunctions(self._fsd.currentFits)
+        self._fsd.sigFitsUpdated.connect(self._mw.fit_method_comboBox.setFitFunctions)
+        self._mw.action_FitSettings.triggered.connect(self._fsd.show)
+        self.logic().sigFitUpdated.connect(self.fit_data_updated)
 
-        @param str fit_method:
-        @param numpy.ndarray fit_data:
-        @param object result:
-        @param str fit_type: 'pulses' 'pulses_alt' or 'timetrace'
-        @return:
-        """
+        self._mw.actionSave.triggered.connect(self.save_clicked)
+
+    @QtCore.Slot()
+    def fit_data_updated(self):
+        """ Method called when logic does a new fit  """
+        fit_method = self.logic().fit_container.current_fit
+        fit_data = self.logic().signal_fit_data
+        result = self.logic().fit_container.current_fit_result
+
         # Get formatted result string
         if fit_method == 'No Fit':
             formatted_fitresult = 'No Fit'
@@ -167,8 +170,6 @@ class Main(GUIBase):
         elif fit_method != 'No Fit' and self.ta_window_image_fit not in self._mw.window_PlotWidget.items():
             self._mw.window_PlotWidget.addItem(self.ta_window_image_fit)
         self._mw.fit_method_comboBox.blockSignals(False)
-
-        return
 
     @QtCore.Slot()
     def settings_changed(self):
@@ -242,4 +243,12 @@ class Main(GUIBase):
 
     @QtCore.Slot()
     def fit_clicked(self):
-        pass
+        """ Method executed when fit button is clicked """
+        current_fit_method = self._mw.fit_method_comboBox.getCurrentFit()[0]
+        self.logic().do_fit(current_fit_method)
+
+    def save_clicked(self):
+        """ Saves the current data"""
+        self._mw.actionSave.setEnabled(False)
+        self.logic().save()
+        self._mw.actionSave.setEnabled(True)
