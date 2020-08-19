@@ -75,10 +75,14 @@ class LaserPowerController(GenericLogic):
     power_switch = Connector(interface='SwitchInterface', optional=True)
     power_meter = Connector(interface='ProcessInterface', optional=True)
 
+    name = ConfigOption('name', 'Laser')  # Match the name of the motor axis
+    color = ConfigOption('color', 'lightgreen')  # Match the name of the motor axis
+
     config_control_limits = ConfigOption('control_limits', [None, None])  # In case hardware does not fix this
     power_switch_index = ConfigOption('power_switch_index', 0)  # If hardware has multiple switches
     scanner_channel_index = ConfigOption('scanner_channel_index', 3)  # To set the analog channel (4th is default)
     motor_axis = ConfigOption('motor_axis', 'phi')  # Match the name of the motor axis
+
 
     sigNewPowerRange = QtCore.Signal()
 
