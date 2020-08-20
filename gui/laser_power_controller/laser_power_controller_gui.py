@@ -20,6 +20,7 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 
 import numpy as np
 import os
+import math
 import pyqtgraph as pg
 
 from core.connector import Connector
@@ -54,6 +55,15 @@ class LaserWidget(QtWidgets.QWidget):
         uic.loadUi(ui_file, self)
 
 
+def find_nearest_index(array, value):
+    """ Find the index of the closest value in an array. """
+    idx = np.searchsorted(array, value, side="left")
+    if idx > 0 and (idx == len(array) or math.fabs(value - array[idx-1]) < math.fabs(value - array[idx])):
+        return idx-1
+    else:
+        return idx
+
+
 class Main(GUIBase):
     """ GUI module to control one or multiple laser power
 
@@ -80,26 +90,49 @@ class Main(GUIBase):
         widget = LaserWidget()
         widget.color_label.setStyleSheet("QLabel{{background-color : {}}}".format(self.logic().color))
         widget.label.setText(self.logic().name)
-        switch_state = self.logic().get_switch_state()
-        if switch_state is None:
-            widget.checkBox.setEnabled(False)
-        else:
-            widget.checkBox.setChecked(switch_state)
-        widget.powerSpinBox.setValue(self.logic().get_power_setpoint())
+        widget.slider_powers = self._compute_slider_powers(self.logic().power_max, self.logic().power_min)
+        widget.slider.setMaximum(len(widget.slider_powers)-1)
 
-        slider_powers = self._compute_slider_powers(self.logic().power_max, self.logic().power_min)
-        widget.slider.setMaximum(len(slider_powers)-1)
+        self.update_switch_logic_to_gui(self.logic, widget)
+        self.logic().sigNewSwitchState.connect(lambda: self.update_switch_logic_to_gui(self.logic, widget))
 
-        def update_from_slider(index):
-            widget.powerSpinBox.setValue(slider_powers[index])
+        self.update_power_logic_to_gui(self.logic, widget)
+        self.logic().sigNewPower.connect(lambda: self.update_power_logic_to_gui(self.logic, widget))
 
-        widget.slider.sliderMoved.connect(update_from_slider)
+        widget.slider.sliderMoved.connect(lambda i: self.update_power_slider_gui_to_logic(self.logic, widget))
+        widget.powerSpinBox.editingFinished.connect(lambda: self.update_power_gui_to_logic(self.logic, widget))
+        widget.checkBox.stateChanged.connect(lambda: self.update_switch_gui_to_logic(self.logic, widget))
 
         self._mw.verticalLayout.addWidget(widget)
         self.widgets.append(widget)
 
+    def update_switch_logic_to_gui(self, logic, widget):
+        """"""
+        switch_state = logic().get_switch_state()
+        if switch_state is None:
+            widget.checkBox.setEnabled(False)
+        else:
+            widget.checkBox.blockSignals(True)
+            widget.checkBox.setChecked(switch_state)
+            widget.checkBox.blockSignals(False)
 
-        #
+    def update_switch_gui_to_logic(self, logic, widget):
+        logic().set_switch_state(widget.checkBox.isChecked())
+
+    def update_power_logic_to_gui(self, logic, widget):
+        widget.powerSpinBox.blockSignals(True)
+        widget.slider.blockSignals(True)
+        widget.powerSpinBox.setValue(logic().get_power_setpoint())
+        if not widget.slider.isSliderDown():
+            widget.slider.setValue(find_nearest_index(widget.slider_powers, logic().get_power_setpoint()))
+        widget.powerSpinBox.blockSignals(False)
+        widget.slider.blockSignals(False)
+
+    def update_power_slider_gui_to_logic(self, logic, widget):
+        logic().set_power(widget.slider_powers[widget.slider.value()])
+
+    def update_power_gui_to_logic(self, logic, widget):
+        logic().set_power(widget.powerSpinBox.value())
 
     def on_deactivate(self):
         """ Deactivate the module properly. """

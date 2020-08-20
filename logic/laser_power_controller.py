@@ -83,7 +83,8 @@ class LaserPowerController(GenericLogic):
     scanner_channel_index = ConfigOption('scanner_channel_index', 3)  # To set the analog channel (4th is default)
     motor_axis = ConfigOption('motor_axis', 'phi')  # Match the name of the motor axis
 
-
+    sigNewSwitchState = QtCore.Signal()
+    sigNewPower = QtCore.Signal()
     sigNewPowerRange = QtCore.Signal()
 
     # Configure panel
@@ -186,6 +187,7 @@ class LaserPowerController(GenericLogic):
 
         _, inverse, _ = self.get_model_functions()
         self._set_control(inverse(self.model_params, value))
+        self.sigNewPower.emit()
 
     @property
     def power_max(self):
@@ -210,6 +212,16 @@ class LaserPowerController(GenericLogic):
             return self.power_switch().getSwitchState(self.power_switch_index)
         else:
             return None
+
+    def set_switch_state(self, value):
+        """ Sets the switch state of the laser if available"""
+        if self.power_switch.is_connected:
+            if value:
+                self.power_switch().switchOn(self.power_switch_index)
+            else:
+                self.power_switch().switchOff(self.power_switch_index)
+        else:
+            self.log.error('No switch connected.')
 
     def get_model_functions(self, model=None):
         """ Get the direct, inverse and estimator for a given model
