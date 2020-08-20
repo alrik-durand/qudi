@@ -97,7 +97,6 @@ class LaserPowerController(GenericLogic):
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
-        self._switch_state = None
 
     def on_activate(self):
         """ Initialisation performed during activation of the module. """
@@ -107,9 +106,6 @@ class LaserPowerController(GenericLogic):
                 int(self.motor_hardware.is_connected) != 1:
             self.log.error('No or too many controller connected. Check configuration. ')
             return
-
-        if self.power_switch.is_connected:
-            self._switch_state = self.power_switch().getSwitchState(self.power_switch_index)
 
         if self.model_params == {}:
             _, _, estimator = self.get_model_functions()
@@ -168,14 +164,14 @@ class LaserPowerController(GenericLogic):
 
         @return (float): Power sent to setup
         """
-        return self.get_power_setpoint() if self._switch_state is not False else 0.
+        return self.get_power_setpoint() if self.get_switch_state() is not False else 0.
 
     def get_power_setpoint(self):
         """ Get the power set, whether switch state is on or off.
 
          @return (float): Power set in logic """
         direct, _, _ = self.get_model_functions()
-        return direct(self._get_control())
+        return direct(self.model_params, self._get_control())
 
     def set_power(self, value):
         """ Set the power to a given value
@@ -189,21 +185,31 @@ class LaserPowerController(GenericLogic):
             self.log.error('Can not set power more than {}. Increase laser power and recompute model.')
 
         _, inverse, _ = self.get_model_functions()
-        self._set_control(inverse(value))
+        self._set_control(inverse(self.model_params, value))
 
     @property
     def power_max(self):
         """ Get the maximum possible power with current model """
         direct, _, _ = self.get_model_functions()
         mini, maxi = self._get_control_limits()
-        return np.max([direct(mini), direct(maxi)])
+        return np.max([direct(self.model_params, mini), direct(self.model_params, maxi)])
 
     @property
     def power_min(self):
         """ Get the maximum possible power with current model """
         direct, _, _ = self.get_model_functions()
         mini, maxi = self._get_control_limits()
-        return np.min([direct(mini), direct(maxi)])
+        return np.min([direct(self.model_params, mini), direct(self.model_params, maxi)])
+
+    def get_switch_state(self):
+        """ Returns the current switch state of the laser
+
+         @return (bool|None): Boolean state if switch is connected else None
+         """
+        if self.power_switch.is_connected:
+            return self.power_switch().getSwitchState(self.power_switch_index)
+        else:
+            return None
 
     def get_model_functions(self, model=None):
         """ Get the direct, inverse and estimator for a given model
@@ -229,9 +235,12 @@ class LaserPowerController(GenericLogic):
 
         @return: The predicted laser power
         """
-        X = control / params['sigma']
+        X = np.array([control]) / params['sigma']
+        X[X == 0] = np.NaN  # Set zero as NaN to treat it separately
         denominator = 1 + (1/X)**params['slope']
-        return params['max'] / denominator**params['beta']
+        result = params['max'] / denominator**params['beta']
+        result[np.isnan(result)] = 0
+        return result[0]
 
     def _aom_model_inverse(self, params, power):
         """ Compute the control value to use given a set of parameters to set a given power
@@ -242,9 +251,13 @@ class LaserPowerController(GenericLogic):
 
         @return: The predicted laser power
         """
+        power = np.array([power])
+        power[power == 0] = np.NaN  # Set zero as NaN to treat it separately
         denominator = (params['max']/power)**params['beta'] - 1
         X = (1 / denominator)**(1/params['slope'])
-        return X*params['sigma']
+        result = X*params['sigma']
+        result[np.isnan(result)] = 0
+        return result[0]
 
     def _aom_model_estimator(self, control=None, power=None):
         """ Compute a fit starting point for the AOM model """
