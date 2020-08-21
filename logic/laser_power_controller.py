@@ -77,6 +77,7 @@ class LaserPowerController(GenericLogic):
 
     name = ConfigOption('name', 'Laser')  # Match the name of the motor axis
     color = ConfigOption('color', 'lightgreen')  # Match the name of the motor axis
+    model = ConfigOption('model', 'aom')  # ['aom', 'half_wave_plate']
 
     config_control_limits = ConfigOption('control_limits', [None, None])  # In case hardware does not fix this
     power_switch_index = ConfigOption('power_switch_index', 0)  # If hardware has multiple switches
@@ -93,8 +94,7 @@ class LaserPowerController(GenericLogic):
     sigFinished = QtCore.Signal()
 
     # Status variable containing control to model information
-    model = StatusVar('model', 'aom')  # ['aom', 'half_wave_plate']
-    model_params = StatusVar('voltages', {})
+    model_params = StatusVar('model_params', {})
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
