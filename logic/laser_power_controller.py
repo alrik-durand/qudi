@@ -89,15 +89,22 @@ class LaserPowerController(GenericLogic):
     sigNewPowerRange = QtCore.Signal()
 
     # Configure panel
-    sigNewDataPoint = QtCore.Signal()
-    sigStarted = QtCore.Signal()
-    sigFinished = QtCore.Signal()
+    sigDoNextPoint = QtCore.Signal()
 
     # Status variable containing control to model information
     model_params = StatusVar('model_params', {})
 
+    # Status variable containing calibration parameters
+    resolution = StatusVar('resolution', 50)
+    delay = StatusVar('delay', 0)
+    config_type = StatusVar('config_type', 'Logarithmic')  # 'Logarithmic' or 'Linear
+
+    calibration_x = StatusVar('calibration_x', [])
+    calibration_y = StatusVar('calibration_y', [])
+
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
+        self.timer = None
 
     def on_activate(self):
         """ Initialisation performed during activation of the module. """
@@ -111,6 +118,12 @@ class LaserPowerController(GenericLogic):
         if self.model_params == {}:
             _, _, estimator = self.get_model_functions()
             self.model_params = estimator().valuesdict()
+
+        # For calibration
+        self.sigDoNextPoint.connect(self._next_point_apply_control)
+        self.timer = QtCore.QTimer()
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self._next_point_measure_power)
 
     def on_deactivate(self):
         pass
@@ -234,6 +247,69 @@ class LaserPowerController(GenericLogic):
             model = self.model
         if model == 'aom':
             return self._aom_model, self._aom_model_inverse, self._aom_model_estimator
+
+    def set_resolution(self, value):
+        """ Setter for the resolution parameter """
+        self.resolution = value
+
+    def set_delay(self, value):
+        """ Setter for the delay parameter """
+        self.delay = value
+
+    def set_type(self, value):
+        """ Setter for the config_type parameter """
+        if value not in ['Logarithmic', 'Linear']:
+            self.log.error('{} is not an allowed value'.format(value))
+            return
+        self.config_type = value
+
+    def start_configure_measurement(self):
+        """ Start the measurement sequence """
+        if self.module_state() != 'idle':
+            self.log.error('Module already running.')
+            return
+        self.module_state.run()
+        mini, maxi = self._get_control_limits()
+        if self.config_type == 'Linear':
+            self.calibration_x = np.linspace(mini, maxi, int(self.resolution))
+        elif self.config_type == 'Logarithmic':
+            if mini == 0:
+                mini = maxi * 1e-6
+            self.calibration_x = np.geomspace(mini, maxi, int(self.resolution))
+        self.calibration_y = self.calibration_x * np.NaN
+        self.sigDoNextPoint.emit()
+
+    def stop_configure_measurement(self):
+        """ Stop the measurement sequence """
+        self.module_state.stop()
+        self.timer.stop()
+
+    def _get_next_index(self):
+        """ Helper method that compute the index of the first NaN in self.calibration_y """
+        nan_indexes = np.arange(len(self.calibration_y))[np.isnan(self.calibration_y)]
+        if len(nan_indexes) == 0:
+            return None
+        else:
+            return nan_indexes[0]
+
+    def _next_point_apply_control(self):
+        """ First part of the next point measurement : apply a given control value """
+        if self.module_state() != 'running':
+            return
+        index = self._get_next_index()
+        if index is None:  # All points are done
+            self.module_state.stop()
+            return
+        self._set_control(self.calibration_x[index])
+        self.timer.start(float(self.delay)*1e3)
+
+    def _next_point_measure_power(self):
+        """ Second part of the next point measurement : measure the power """
+        if self.module_state() != 'running':
+            return
+        index = self._get_next_index()
+        self.calibration_y[index] = self.power_meter().get_process_value()
+        self.sigDoNextPoint.emit()
 
     # List of models use to map control value to laser power
     # They need to be monotone on the control limit range to have a defined inverse function

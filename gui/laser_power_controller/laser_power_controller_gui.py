@@ -25,6 +25,7 @@ import pyqtgraph as pg
 
 from core.connector import Connector
 from gui.guibase import GUIBase
+from gui.colordefs import QudiPalettePale as palette
 from qtpy import QtCore
 from qtpy import QtWidgets
 from qtpy import uic
@@ -223,12 +224,36 @@ class Main(GUIBase):
         return result
 
     # Configure window methods
-
     def open_configure_window(self, logic, widget):
         """ Create the configure window """
 
         if widget.configure_window is None:
             window = ConfigureWindow()
+
+            window.runAction.triggered.connect(logic().start_configure_measurement)
+            window.abortAction.triggered.connect(logic().stop_configure_measurement)
+
+            window.resolution.setValue(logic().resolution)
+            window.delay.setValue(logic().delay)
+            window.comboBox_type.setCurrentText(logic().config_type)
+
+            window.resolution.editingFinished.connect(lambda: logic().set_resolution(window.resolution.value()))
+            window.delay.editingFinished.connect(lambda: logic().set_delay(window.delay.value()))
+            window.comboBox_type.currentTextChanged.connect(lambda value: logic().set_type(value))
+
+            widget.curve = pg.PlotDataItem(logic().calibration_x, logic().calibration_y,
+                                          pen=pg.mkPen(palette.c1, style=QtCore.Qt.DotLine),
+                                          symbol='o',
+                                          symbolPen=palette.c1,
+                                          symbolBrush=palette.c1,
+                                          symbolSize=7)
+
+            window.plotWidget.addItem(widget.curve)
+            window.plotWidget.setLabel(axis='left', text='Power', units='W')
+            window.plotWidget.setLabel(axis='bottom', text='Control', units='')
+            window.plotWidget.showGrid(x=True, y=True, alpha=0.8)
+
+            self.logic().sigDoNextPoint.connect(lambda: self.update_calibration_data(logic, widget))
 
             window.model_label.setText(logic().model)
 
@@ -239,9 +264,14 @@ class Main(GUIBase):
                 window.model_params.addWidget(label, i, 0)
                 window.model_params.addWidget(spinbox, i, 1)
 
-
             widget.configure_window = window
         else:
             widget.configure_window.show()
 
+    def update_calibration_data(self, logic, widget):
+        """ Update the plot with logic's data """
+        if len(logic().calibration_y) == 0 or np.isnan(logic().calibration_y[0]):
+            widget.curve.setData([], [])
+        else:
+            widget.curve.setData(logic().calibration_x, logic().calibration_y)
 
