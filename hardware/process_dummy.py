@@ -89,7 +89,7 @@ class ProcessDummy(Base, ProcessInterface, ProcessControlInterface):
 
             @return tuple(float, float): minimum and maximum of control value
         """
-        return -100, 100
+        return 0, 1
 
     def _recalcTemp(self):
         """ Update current temperature based on model.
