@@ -245,6 +245,7 @@ class LaserPowerController(GenericLogic):
         """
         if model is None:
             model = self.model
+
         if model == 'aom':
             return self._aom_model, self._aom_model_inverse, self._aom_model_estimator
 
@@ -310,6 +311,22 @@ class LaserPowerController(GenericLogic):
         index = self._get_next_index()
         self.calibration_y[index] = self.power_meter().get_process_value()
         self.sigDoNextPoint.emit()
+
+    def fit(self):
+        """ Use the current calibration data to fit the model parameters """
+
+        def concatenate_with_log(x):
+            if isinstance(x, (int, float)):
+                return x
+            log_x = np.log(x)
+            log_x = log_x[x != 0]
+            return np.concatenate([x, log_x])
+
+        model, model_inverse, estimator = self.get_model_functions()
+        x, y = self.calibration_x, self.calibration_y
+        params = estimator(x, y)
+        result = lmfit.minimize(model, params, args=(x, y))
+        self.model_params = result.params.valuesdict()
 
     # List of models use to map control value to laser power
     # They need to be monotone on the control limit range to have a defined inverse function

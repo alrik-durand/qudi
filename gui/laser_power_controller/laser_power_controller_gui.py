@@ -264,6 +264,8 @@ class Main(GUIBase):
                 window.model_params.addWidget(label, i, 0)
                 window.model_params.addWidget(spinbox, i, 1)
 
+            window.fit.clicked.connect(logic().fit)
+
             widget.configure_window = window
         else:
             widget.configure_window.show()
