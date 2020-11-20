@@ -37,11 +37,18 @@ class SwitchLogic(GenericLogic):
         watchdog_interval: 1  # optional
         autostart_watchdog: True  # optional
         connect:
-            switch: <switch name>
+            hardware: <switch name>
+        switch_names:
+            one: ['down', 'up']
+            two: ['down', 'up']
+            three: ['low', 'middle', 'high']
     """
 
     # connector for one switch, if multiple switches are needed use the SwitchCombinerInterfuse
-    switch = Connector(interface='SwitchInterface')
+    hardware = Connector(interface='SwitchInterface')
+
+    _custom_name_config = ConfigOption(name='custom_name', default=None, missing='nothing')
+    _custom_states_config = ConfigOption(name='custom_states', default=None, missing='nothing')
 
     _watchdog_interval = ConfigOption(name='watchdog_interval', default=1.0, missing='nothing')
     _autostart_watchdog = ConfigOption(name='autostart_watchdog', default=False, missing='nothing')
@@ -49,21 +56,46 @@ class SwitchLogic(GenericLogic):
     sigSwitchesChanged = QtCore.Signal(dict)
     sigWatchdogToggled = QtCore.Signal(bool)
 
-    # directly wrapped attributes from hardware module
-    __wrapped_hw_attributes = frozenset({'switch_names', 'number_of_switches', 'available_states'})
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
         self._thread_lock = RecursiveMutex()
-
-        self._watchdog_active = False
-        self._watchdog_interval_ms = 0
-        self._old_states = dict()
+        self._watchdog_active = None
+        self._watchdog_interval_ms = None
+        self._old_states = None
+        self._custom_name = None
+        self._custom_states = None
+        self._hardware_states = None
 
     def on_activate(self):
         """ Activate module
         """
+
+        self._custom_name = self._custom_name_config if self._custom_name_config else self.hardware.name()
+
+        # Define states as config defined if possible
+        if self._custom_states_config is not None:
+            self._custom_states = self._custom_states_config
+        else:
+            self._custom_states = self.hardware.available_states()
+
+        # Check states validity
+        if not isinstance(self._custom_states, dict):
+            self.log.error('custom_states must be a dict of tuples')
+        if len(self._custom_states) != self.hardware().number_of_switches:
+            self.log.error('number of elements in custom states do not match')
+        if not all((isinstance(name, str) and name) for name in self._custom_states):
+            self.log.error('Switch name must be non-empty string')
+        if not all(len(states) > 1 for states in self._custom_states.values()):
+            self.log.error('State tuple must contain at least 2 states')
+        if not all(all((s and isinstance(s, str)) for s in states) for states in self._custom_states.values()):
+            self.log.error('Switch states must be non-empty strings')
+
+        # Convert state lists to tuples in order to restrict mutation
+        self._custom_states = {switch: tuple(states) for switch, states in self._custom_states.items()}
+
+        # Store the hardware defined states for name conversion
+        self._hardware_states = self.hardware.available_states()
+
         self._old_states = self.states
         self._watchdog_interval_ms = int(round(self._watchdog_interval * 1000))
 
@@ -78,10 +110,32 @@ class SwitchLogic(GenericLogic):
         """
         self._watchdog_active = False
 
-    def __getattr__(self, item):
-        if item in self.__wrapped_hw_attributes:
-            return getattr(self.switch(), item)
-        raise AttributeError(f'SwitchLogic has no attribute with name "{item}"')
+    @property
+    def switch_names(self):
+        """ Names of all available switches as tuple.
+
+        @return str[]: Tuple of strings of available switch names.
+        """
+        return tuple(self._custom_states)
+
+    @property
+    def number_of_switches(self):
+        """ Number of switches provided by the hardware.
+
+        @return int: number of switches
+        """
+        return int(self.switch().number_of_switches)
+
+    @property
+    def available_states(self):
+        """ Names of the states as a dict of tuples.
+
+        The keys contain the names for each of the switches. The values are tuples of strings
+        representing the ordered names of available states for each switch.
+
+        @return dict: Available states per switch in the form {"switch": ("state1", "state2")}
+        """
+        return self._custom_states
 
     @property
     def device_name(self):
@@ -95,6 +149,14 @@ class SwitchLogic(GenericLogic):
     def watchdog_active(self):
         return self._watchdog_active
 
+    def _hardware_to_custom(self, states):
+
+        return { self._custom_states[list(self._hardware_states).index(key)] :
+                             self._hardware_states[key].index(states[key]) for key in keys}
+
+
+
+
     @property
     def states(self):
         """ The current states the hardware is in as state dictionary with switch names as keys and
@@ -104,10 +166,10 @@ class SwitchLogic(GenericLogic):
         """
         with self._thread_lock:
             try:
-                states = self.switch().states
+                hardware_states = self.switch().states
                 self._old_states = states
             except:
-                self.log.exception(f'Error during query of all switch states.')
+                self.log.exception('Error during query of all switch states.')
                 states = dict()
             return states
 
