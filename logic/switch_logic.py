@@ -149,13 +149,28 @@ class SwitchLogic(GenericLogic):
     def watchdog_active(self):
         return self._watchdog_active
 
+
     def _hardware_to_custom(self, states):
+        """ Convert a state dictionary from the hardware convention to custom config defined convention
 
-        return { self._custom_states[list(self._hardware_states).index(key)] :
-                             self._hardware_states[key].index(states[key]) for key in keys}
+        Ex : {'A': '1'}  -->  {'Detector switch': 'APD'} """
+        result = {}
+        for key in states:
+            custom_name = list(self._custom_states)[list(self._hardware_states).index(key)]
+            custom_state_name = self._custom_states[custom_name][self._hardware_states[key].index(states[key])]
+            result[custom_name] = custom_state_name
+        return result
 
+    def _custom_to_hardware(self, states):
+        """ Convert a state dictionary from the custom config convention to hardware convention
 
-
+        Ex : {'Detector switch': 'APD'} --> {'A': '1'} """
+        result = {}
+        for key in states:
+            hardware_name = list(self._hardware_states)[list(self._custom_states).index(key)]
+            hardware_state_name = self._hardware_states[hardware_name][self._custom_states[key].index(states[key])]
+            result[hardware_name] = hardware_state_name
+        return result
 
     @property
     def states(self):
@@ -167,11 +182,11 @@ class SwitchLogic(GenericLogic):
         with self._thread_lock:
             try:
                 hardware_states = self.switch().states
-                self._old_states = states
+                self._old_states = hardware_states
             except:
                 self.log.exception('Error during query of all switch states.')
-                states = dict()
-            return states
+                hardware_states = dict()
+            return self._hardware_to_custom(hardware_states)
 
     @states.setter
     def states(self, state_dict):
@@ -184,7 +199,7 @@ class SwitchLogic(GenericLogic):
         """
         with self._thread_lock:
             try:
-                self.switch().states = state_dict
+                self.switch().states = self._custom_to_hardware(state_dict)
             except:
                 self.log.exception('Error while trying to set switch states.')
 
@@ -200,12 +215,13 @@ class SwitchLogic(GenericLogic):
         """
         with self._thread_lock:
             try:
-                state = self.switch().get_state(switch)
-                self._old_states[switch] = state
+                hardware_name = list(self._hardware_states)[list(self._custom_states).index(switch)]
+                state = self.switch().get_state(hardware_name)
+                self._old_states[hardware_name] = state
             except:
                 self.log.exception(f'Error while trying to query state of switch "{switch}".')
                 state = None
-            return state
+            return self._custom_states[switch][self._hardware_states[hardware_name].index(state)]
 
     @QtCore.Slot(str, str)
     def set_state(self, switch, state):
@@ -216,7 +232,9 @@ class SwitchLogic(GenericLogic):
         """
         with self._thread_lock:
             try:
-                self.switch().set_state(switch, state)
+                hardware_name = list(self._hardware_states)[list(self._custom_states).index(switch)]
+                hardware_state = self._hardware_states[hardware_name][self._custom_states[switch].index(state)]
+                self.switch().set_state(hardware_name, hardware_state)
             except:
                 self.log.exception(
                     f'Error while trying to set switch "{switch}" to state "{state}".'
