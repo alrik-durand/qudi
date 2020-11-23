@@ -34,18 +34,9 @@ class SwitchDummy(Base, SwitchInterface):
         module.Class: 'switches.switch_dummy.SwitchDummy'
         name: 'First'  # optional
         remember_states: True  # optional
-        switches:
-            one: ['down', 'up']
-            two: ['down', 'up']
-            three: ['low', 'middle', 'high']
     """
 
     # ConfigOptions
-    # customize available switches in config. Each switch needs a tuple of at least 2 state names.
-    _switches = ConfigOption(name='switches', missing='error')
-    # optional name of the hardware
-    _hardware_name = ConfigOption(name='name', default=None, missing='nothing')
-    # if remember_states is True the last state will be restored at reloading of the module
     _remember_states = ConfigOption(name='remember_states', default=True, missing='nothing')
 
     # StatusVariable for remembering the last state of the hardware
@@ -54,11 +45,10 @@ class SwitchDummy(Base, SwitchInterface):
     def on_activate(self):
         """ Activate the module and fill status variables.
         """
-        self._switches = self._chk_refine_available_switches(self._switches)
+        self._switches = {'one': ['down', 'up'],
+                          'two': ['down', 'up'],
+                          'three': ['low', 'middle', 'high']}
 
-        # Choose config name for this module if no name is given in ConfigOptions
-        if self._hardware_name is None:
-            self._hardware_name = self._name
 
         # reset states if requested, otherwise use the saved states
         if not self._remember_states or not isinstance(self._states, dict) or \
@@ -76,7 +66,7 @@ class SwitchDummy(Base, SwitchInterface):
 
         @return str: The name of the hardware
         """
-        return self._hardware_name
+        return 'Dummy switch'
 
     @property
     def available_states(self):
