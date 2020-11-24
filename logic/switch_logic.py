@@ -70,13 +70,13 @@ class SwitchLogic(GenericLogic):
         """ Activate module
         """
 
-        self._custom_name = self._custom_name_config if self._custom_name_config else self.hardware.name()
+        self._custom_name = self._custom_name_config if self._custom_name_config else self.hardware().name
 
         # Define states as config defined if possible
         if self._custom_states_config is not None:
             self._custom_states = self._custom_states_config
         else:
-            self._custom_states = self.hardware.available_states()
+            self._custom_states = self.hardware().available_states
 
         # Check states validity
         if not isinstance(self._custom_states, dict):
@@ -94,9 +94,9 @@ class SwitchLogic(GenericLogic):
         self._custom_states = {switch: tuple(states) for switch, states in self._custom_states.items()}
 
         # Store the hardware defined states for name conversion
-        self._hardware_states = self.hardware.available_states()
+        self._hardware_states = self.hardware().available_states
 
-        self._old_states = self.states
+        self._old_states = self.hardware().states
         self._watchdog_interval_ms = int(round(self._watchdog_interval * 1000))
 
         if self._autostart_watchdog:
@@ -124,7 +124,7 @@ class SwitchLogic(GenericLogic):
 
         @return int: number of switches
         """
-        return int(self.switch().number_of_switches)
+        return int(self.hardware().number_of_switches)
 
     @property
     def available_states(self):
@@ -143,7 +143,7 @@ class SwitchLogic(GenericLogic):
 
         @return str: The name of the connected hardware switch
         """
-        return self.switch().name
+        return self.hardware().name
 
     @property
     def watchdog_active(self):
@@ -181,7 +181,7 @@ class SwitchLogic(GenericLogic):
         """
         with self._thread_lock:
             try:
-                hardware_states = self.switch().states
+                hardware_states = self.hardware().states
                 self._old_states = hardware_states
             except:
                 self.log.exception('Error during query of all switch states.')
@@ -199,7 +199,7 @@ class SwitchLogic(GenericLogic):
         """
         with self._thread_lock:
             try:
-                self.switch().states = self._custom_to_hardware(state_dict)
+                self.hardware().states = self._custom_to_hardware(state_dict)
             except:
                 self.log.exception('Error while trying to set switch states.')
 
@@ -216,7 +216,7 @@ class SwitchLogic(GenericLogic):
         with self._thread_lock:
             try:
                 hardware_name = list(self._hardware_states)[list(self._custom_states).index(switch)]
-                state = self.switch().get_state(hardware_name)
+                state = self.hardware().get_state(hardware_name)
                 self._old_states[hardware_name] = state
             except:
                 self.log.exception(f'Error while trying to query state of switch "{switch}".')
@@ -234,7 +234,7 @@ class SwitchLogic(GenericLogic):
             try:
                 hardware_name = list(self._hardware_states)[list(self._custom_states).index(switch)]
                 hardware_state = self._hardware_states[hardware_name][self._custom_states[switch].index(state)]
-                self.switch().set_state(hardware_name, hardware_state)
+                self.hardware().set_state(hardware_name, hardware_state)
             except:
                 self.log.exception(
                     f'Error while trying to set switch "{switch}" to state "{state}".'
@@ -269,10 +269,10 @@ class SwitchLogic(GenericLogic):
         """
         with self._thread_lock:
             if self._watchdog_active:
-                curr_states = self.states
+                curr_states = self.hardware().states
                 diff_state = {switch: state for switch, state in curr_states.items() if
                               state != self._old_states[switch]}
                 self._old_states = curr_states
                 if diff_state:
-                    self.sigSwitchesChanged.emit(diff_state)
+                    self.sigSwitchesChanged.emit(self._hardware_to_custom(diff_state))
                 QtCore.QTimer.singleShot(self._watchdog_interval_ms, self._watchdog_body)
