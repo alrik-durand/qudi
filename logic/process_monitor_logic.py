@@ -19,19 +19,24 @@ Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
 top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
 """
 
+from core.configoption import ConfigOption
 from logic.generic_logic import GenericLogic
 from collections import OrderedDict
 from qtpy import QtCore
 
 
-class DisplayLogic(GenericLogic):
-    """ Logic module aggregating multiple hardware switches.
+class ProcessMonitorLogic(GenericLogic):
+    """ Logic module to monitor one or multiple process value hardware.
 
-    displaylogic:
-        module.Class: 'display_logic.DisplayLogic'
+    process_monitor_logic:
+        module.Class: 'monitor_logic.ProcessMonitorLogic'
         connect:
-            process_1: 'processdummy'
+            process_1: 'processdummy_1'
+            process_2: 'processdummy_2'
+        names: ['Temperature', 'Humidity']
     """
+
+    _refreshing_time = ConfigOption('refreshing_time', 1)
 
     def __init__(self, config, **kwargs):
         """ Create logic object
@@ -51,13 +56,13 @@ class DisplayLogic(GenericLogic):
     def on_activate(self):
         """ Prepare logic module for work.
         """
-        self.display = dict()
-        for connector in self.connectors:
-            hwname = self.get_connector(connector)._name
-            self.display[hwname] = self.get_connector(connector)
+        self.updateValues = QtCore.QTimer()
+        self.updateValues.setSingleShot(False)
+        self.updateValues.timeout.connect(self.update_values)
+        self.updateValues.start(self._refreshing_time)
 
     def on_deactivate(self):
         """ Deactivate modeule.
         """
-        self.display = dict()
+
 
