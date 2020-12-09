@@ -114,14 +114,14 @@ class Main(GUIBase):
         widget = LaserWidget()
         widget.color_label.setStyleSheet("QLabel{{background-color : {}}}".format(logic().color))
         widget.label.setText(logic().name)
-        widget.slider_powers = self._compute_slider_powers(logic().power_max, logic().power_min)
-        widget.slider.setMaximum(len(widget.slider_powers) - 1)
+        self.update_power_range_logic_to_gui(logic, widget)
 
         self.update_switch_logic_to_gui(logic, widget)
         logic().sigNewSwitchState.connect(lambda: self.update_switch_logic_to_gui(logic, widget))
 
         self.update_power_logic_to_gui(logic, widget)
         logic().sigNewPower.connect(lambda: self.update_power_logic_to_gui(logic, widget))
+        logic().sigNewPowerRange.connect(lambda: self.update_power_range_logic_to_gui(logic, widget))
 
         widget.slider.sliderMoved.connect(lambda i: self.update_power_slider_gui_to_logic(logic, widget, i))
         widget.powerSpinBox.editingFinished.connect(lambda: self.update_power_gui_to_logic(logic, widget))
@@ -156,6 +156,11 @@ class Main(GUIBase):
             widget.slider.setValue(find_nearest_index(widget.slider_powers, logic().get_power_setpoint()))
         widget.powerSpinBox.blockSignals(False)
         widget.slider.blockSignals(False)
+
+    def update_power_range_logic_to_gui(self, logic, widget):
+        """ Update a widget slider range from logic value. """
+        widget.slider_powers = self._compute_slider_powers(logic().power_max, logic().power_min)
+        widget.slider.setMaximum(len(widget.slider_powers) - 1)
 
     def update_power_slider_gui_to_logic(self, logic, widget, i):
         """ Update logic power via slider value """
@@ -195,6 +200,8 @@ class Main(GUIBase):
         """
         maxi = maxi if maxi is not None else self.logic().power_max
         mini = mini if mini is not None else self.logic().power_min
+        if mini == maxi:
+            return np.array([0])
 
         current = maxi
         finals = [current]
@@ -255,6 +262,10 @@ class Main(GUIBase):
 
             self.logic().sigDoNextPoint.connect(lambda: self.update_calibration_data(logic, widget))
 
+            if logic().model == 'none':
+                window.interpolation_checkBox.setEnabled(False)
+            window.interpolation_checkBox.setChecked(logic().use_interpolated)
+            window.interpolation_checkBox.stateChanged.connect(lambda value: logic().set_interpolated(value))
             window.model_label.setText(logic().model)
 
             for i, key in enumerate(logic().model_params):

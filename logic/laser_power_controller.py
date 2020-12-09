@@ -17,11 +17,11 @@ Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
 top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
 """
 
+from functools import partial
 import numpy as np
-import time
+from scipy.interpolate import interp1d
 import lmfit
 
-from collections import OrderedDict
 from qtpy import QtCore
 
 from logic.generic_logic import GenericLogic
@@ -77,7 +77,7 @@ class LaserPowerController(GenericLogic):
 
     name = ConfigOption('name', 'Laser')  # Match the name of the motor axis
     color = ConfigOption('color', 'lightgreen')  # Match the name of the motor axis
-    model = ConfigOption('model', 'aom')  # ['aom', 'half_wave_plate']
+    model = ConfigOption('model', 'none')  # ['none', 'aom', 'half_wave_plate']
 
     config_control_limits = ConfigOption('control_limits', [None, None])  # In case hardware does not fix this
     power_switch_index = ConfigOption('power_switch_index', 0)  # If hardware has multiple switches
@@ -93,6 +93,7 @@ class LaserPowerController(GenericLogic):
 
     # Status variable containing control to model information
     model_params = StatusVar('model_params', {})
+    # use_interpolated = StatusVar('model_params', None)
 
     # Status variable containing calibration parameters
     resolution = StatusVar('resolution', 50)
@@ -105,6 +106,9 @@ class LaserPowerController(GenericLogic):
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
         self.timer = None
+        self._interpolated = None
+        self._interpolated_inverse = None
+        self.use_interpolated = None
 
     def on_activate(self):
         """ Initialisation performed during activation of the module. """
@@ -115,7 +119,13 @@ class LaserPowerController(GenericLogic):
             self.log.error('No or too many controller connected. Check configuration. ')
             return
 
-        if self.model_params == {}:
+        if self.use_interpolated is None:  # First time : use interpolate by default if model is none
+            self.use_interpolated = self.model == 'none'
+
+        if self.use_interpolated:
+            self._compute_interpolated()
+
+        if self.model != 'none' and self.model_params == {}:
             _, _, estimator = self.get_model_functions()
             self.model_params = estimator().valuesdict()
 
@@ -184,8 +194,14 @@ class LaserPowerController(GenericLogic):
         """ Get the power set, whether switch state is on or off.
 
          @return (float): Power set in logic """
-        direct, _, _ = self.get_model_functions()
-        return direct(self.model_params, self._get_control())
+        if self.use_interpolated:
+            if self._interpolated is None:
+                return 0
+            value = self._interpolated(self._get_control())[()]
+        else:
+            direct, _, _ = self.get_model_functions()
+            value = direct(self.model_params, self._get_control())
+        return value
 
     def set_power(self, value):
         """ Set the power to a given value
@@ -193,28 +209,45 @@ class LaserPowerController(GenericLogic):
         @param (float) value: The power in Watt to set
         """
         if value < self.power_min:
-            self.log.error('Can not set power less than {}. Use switch to go bellow.')
+            self.log.warning('Can not set power less than {}. Use switch to go bellow.'.format(self.power_min))
 
         if value > self.power_max:
-            self.log.error('Can not set power more than {}. Increase laser power and recompute model.')
+            self.log.warning('Can not set power more than {}. Increase laser power and refit.'.format(self.power_max))
 
-        _, inverse, _ = self.get_model_functions()
-        self._set_control(inverse(self.model_params, value))
+        if self.use_interpolated and self._interpolated_inverse is None:
+            self.log.warning('Can not set power before calibration')
+            return
+        if self.use_interpolated:
+            control = self._interpolated_inverse(value)[()]
+        else:
+            _, inverse, _ = self.get_model_functions()
+            control = inverse(self.model_params, value)
+        self._set_control(control)
         self.sigNewPower.emit()
 
     @property
     def power_max(self):
         """ Get the maximum possible power with current model """
-        direct, _, _ = self.get_model_functions()
-        mini, maxi = self._get_control_limits()
-        return np.max([direct(self.model_params, mini), direct(self.model_params, maxi)])
+        if self.use_interpolated:
+            if len(self.calibration_y) == 0:
+                return 0
+            return np.max(self.calibration_y)
+        else:
+            direct, _, _ = self.get_model_functions()
+            mini, maxi = self._get_control_limits()
+            return np.max([direct(self.model_params, mini), direct(self.model_params, maxi)])
 
     @property
     def power_min(self):
         """ Get the maximum possible power with current model """
-        direct, _, _ = self.get_model_functions()
-        mini, maxi = self._get_control_limits()
-        return np.min([direct(self.model_params, mini), direct(self.model_params, maxi)])
+        if self.use_interpolated:
+            if len(self.calibration_y) == 0:
+                return 0
+            return np.min(self.calibration_y)
+        else:
+            direct, _, _ = self.get_model_functions()
+            mini, maxi = self._get_control_limits()
+            return np.min([direct(self.model_params, mini), direct(self.model_params, maxi)])
 
     def get_switch_state(self):
         """ Returns the current switch state of the laser
@@ -239,7 +272,7 @@ class LaserPowerController(GenericLogic):
     def get_model_functions(self, model=None):
         """ Get the direct, inverse and estimator for a given model
 
-        @param (str) model: The model to use 'aom' or 'half_wave_plate'
+        @param (str) model: The model to use 'interpolate', 'aom' or 'half_wave_plate'
 
         @return (tuple(function)): A tuple of the direct, inverse and estimator function
         """
@@ -315,18 +348,33 @@ class LaserPowerController(GenericLogic):
     def fit(self):
         """ Use the current calibration data to fit the model parameters """
 
-        def concatenate_with_log(x):
-            if isinstance(x, (int, float)):
-                return x
-            log_x = np.log(x)
-            log_x = log_x[x != 0]
-            return np.concatenate([x, log_x])
+        if self.use_interpolated:
+            self.set_interpolated(True)
+        else:
+            model, model_inverse, estimator = self.get_model_functions()
+            x, y = self.calibration_x, self.calibration_y
+            params = estimator(x, y)
+            result = lmfit.minimize(model, params, args=(x, y))
+            self.model_params = result.params.valuesdict()
 
-        model, model_inverse, estimator = self.get_model_functions()
-        x, y = self.calibration_x, self.calibration_y
-        params = estimator(x, y)
-        result = lmfit.minimize(model, params, args=(x, y))
-        self.model_params = result.params.valuesdict()
+    def set_interpolated(self, value):
+        """ Set method to use or not the interpolated function in logic """
+        self._compute_interpolated()
+        self.use_interpolated = bool(value)
+        self.sigNewPowerRange.emit()
+        self.sigNewPower.emit()
+
+    def _compute_interpolated(self):
+        """ Method called to compute the interpolation function on new calibration """
+        if len(self.calibration_y) == 0:
+            self.log.warning('Calibration data is empty. Can not interpolate')
+            return
+        try:
+            self._interpolated = interp1d(self.calibration_x, self.calibration_y, fill_value="extrapolate")
+            self._interpolated_inverse = interp1d(self.calibration_y, self.calibration_x, fill_value="extrapolate")
+        except:
+            self.log.error('Calibration data can not be used for interpolation')
+
 
     # List of models use to map control value to laser power
     # They need to be monotone on the control limit range to have a defined inverse function
