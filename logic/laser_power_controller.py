@@ -17,7 +17,6 @@ Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
 top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
 """
 
-from functools import partial
 import numpy as np
 from scipy.interpolate import interp1d
 import lmfit
@@ -81,8 +80,13 @@ class LaserPowerController(GenericLogic):
 
     config_control_limits = ConfigOption('control_limits', [None, None])  # In case hardware does not fix this
     power_switch_index = ConfigOption('power_switch_index', 0)  # If hardware has multiple switches
+    process_control_index = ConfigOption('process_control_index', 0)  # If hardware has multiple process
     scanner_channel_index = ConfigOption('scanner_channel_index', 3)  # To set the analog channel (4th is default)
     motor_axis = ConfigOption('motor_axis', 'phi')  # Match the name of the motor axis
+
+    use_minimum_as_zero = ConfigOption('use_minimum_as_zero', True)  #
+    # At zero laser power, the power meter can read a non zero value. This config set the minimum calibration point to
+    # zero by hand.
 
     sigNewSwitchState = QtCore.Signal()
     sigNewPower = QtCore.Signal()
@@ -109,6 +113,7 @@ class LaserPowerController(GenericLogic):
         self._interpolated = None
         self._interpolated_inverse = None
         self.use_interpolated = None
+        self._channel_dict = {}
 
     def on_activate(self):
         """ Initialisation performed during activation of the module. """
@@ -118,6 +123,9 @@ class LaserPowerController(GenericLogic):
                 int(self.motor_hardware.is_connected) != 1:
             self.log.error('No or too many controller connected. Check configuration. ')
             return
+
+        if self.process_control.is_connected and self.process_control().process_control_supports_multiple_channels():
+            self._channel_dict = {'channel': self.process_control_index}
 
         if self.use_interpolated is None:  # First time : use interpolate by default if model is none
             self.use_interpolated = self.model == 'none'
@@ -141,7 +149,7 @@ class LaserPowerController(GenericLogic):
     def _get_control(self):
         """ Get the value of the control parameter """
         if self.process_control.is_connected:
-            return self.process_control().get_control_value()
+            return self.process_control().get_control_value(**self._channel_dict)
         elif self.scanner_logic.is_connected:
             return self.scanner_logic().get_position()[self.scanner_channel_index]
         elif self.motor_hardware.is_connected:
@@ -155,7 +163,7 @@ class LaserPowerController(GenericLogic):
             return
 
         if self.process_control.is_connected:
-            return self.process_control().set_control_value(value)
+            return self.process_control().set_control_value(value, **self._channel_dict)
         elif self.scanner_logic.is_connected:
             return self.scanner_logic().set_position('power_control', **{'xyza'[self.scanner_channel_index]: value})
         elif self.motor_hardware.is_connected:
@@ -166,7 +174,7 @@ class LaserPowerController(GenericLogic):
     def _get_control_limits(self):
         """ Get the control limit, either imposed by hardware or by config """
         if self.process_control.is_connected:
-            limits = self.process_control().get_control_limit()
+            limits = self.process_control().get_control_limit(**self._channel_dict)
         elif self.scanner_logic.is_connected:
             # The line bellow should not do things like this, but confocal_logic does not provide any other way.
             limits = self.scanner_logic()._scanning_device.get_position_range()[self.scanner_channel_index]
@@ -307,9 +315,13 @@ class LaserPowerController(GenericLogic):
         if self.config_type == 'Linear':
             self.calibration_x = np.linspace(mini, maxi, int(self.resolution))
         elif self.config_type == 'Logarithmic':
+            if mini * maxi < 0:
+                self.log.error('Can not use logarithmic scale between {} and {}.'.format(mini, maxi))
             if mini == 0:
                 mini = maxi * 1e-6
             self.calibration_x = np.geomspace(mini, maxi, int(self.resolution))
+            if self._get_control_limits()[0] == 0:
+                self.calibration_x[0] = 0  # Use zero as first point
         self.calibration_y = self.calibration_x * np.NaN
         self.sigDoNextPoint.emit()
 
@@ -369,6 +381,8 @@ class LaserPowerController(GenericLogic):
         if len(self.calibration_y) == 0:
             self.log.warning('Calibration data is empty. Can not interpolate')
             return
+        if self.use_minimum_as_zero:
+            self.calibration_y[np.argmin(self.calibration_y)] = 0
         try:
             self._interpolated = interp1d(self.calibration_x, self.calibration_y, fill_value="extrapolate")
             self._interpolated_inverse = interp1d(self.calibration_y, self.calibration_x, fill_value="extrapolate")
