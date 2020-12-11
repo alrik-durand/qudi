@@ -1593,6 +1593,20 @@ class PulsedMeasurementLogic(GenericLogic):
                                    filepath=filepath, filelabel=filelabel, filetype='text',
                                    delimiter='\t', plotfig=fig)
 
+        # prepare the data in a dict or in an OrderedDict:
+        data = OrderedDict()
+        raw_trace = self.raw_data.astype('int64')
+        data['Signal(counts)'] = raw_trace.transpose()
+        # write the parameters:
+        parameters = OrderedDict()
+        parameters['bin width (s)'] = self.__fast_counter_binwidth
+        parameters['record length (s)'] = self.__fast_counter_record_length
+        parameters['gated counting'] = self.fast_counter_settings['is_gated']
+        parameters['Number of laser pulses'] = self._number_of_lasers
+        parameters['alternating'] = self._alternating
+        parameters['Controlled variable'] = list(self.signal_data[0])
+        parameters['Approx. measurement time (s)'] = self.__elapsed_time
+        parameters['Measurement sweeps'] = self.__elapsed_sweeps
 
     def _compute_alt_data(self):
         """

@@ -32,8 +32,17 @@ from qtpy import QtCore
 
 
 class PIDLogic(GenericLogic):
-    """
-    Control a process via software PID.
+    """ Logic module to monitor and control a PID process
+
+    Example config:
+
+    pidlogic:
+        module.Class: 'pid_logic.PIDLogic'
+        timestep: 0.1
+        connect:
+            controller: 'softpid'
+            savelogic: 'savelogic'
+
     """
 
     # declare connectors
@@ -44,8 +53,8 @@ class PIDLogic(GenericLogic):
     save_to_metadata = ConfigOption('save_to_metadata', True)
 
     # status vars
-    buffer_length = StatusVar('buffer_length', 1000)
-    timestep = StatusVar(default=1)
+    bufferLength = StatusVar('bufferlength', 1000)
+    timestep = ConfigOption('timestep', 100e-3)  # timestep in seconds
 
     history = None
 
@@ -63,7 +72,7 @@ class PIDLogic(GenericLogic):
         self.saving_state = False
         self.timer = QtCore.QTimer()
         self.timer.setSingleShot(True)
-        self.timer.setInterval(self.timestep*1e3)
+        self.timer.setInterval(self.timestep * 1000)  # in ms
         self.timer.timeout.connect(self.loop)
         self.loop()  # Get initial value without delay for GUI
         self.start_loop()
@@ -92,8 +101,8 @@ class PIDLogic(GenericLogic):
     def start_loop(self):
         """ Start the data recording loop.
         """
-        self.module_state.run()
-        self.timer.start(self.timestep*1e3)
+        self.enabled = True
+        self.timer.start(self.timestep * 1000)  # in ms
 
     def stop_loop(self):
         """ Stop the data recording loop.
@@ -109,15 +118,8 @@ class PIDLogic(GenericLogic):
         self.history[1, -1] = self.controller().get_control_value()
         self.history[2, -1] = self.controller().get_setpoint()
         self.sigUpdateDisplay.emit()
-        if self.module_state() == 'running':
-            self.timer.start(self.timestep*1e3)
-        if self.save_to_metadata:
-            self.savelogic().update_additional_parameters({'{}'.format(self.pid_name): self.controller().get_setpoint()})
-            self.savelogic().update_additional_parameters({'{}_measured'.format(self.pid_name):
-                                                           self.controller().get_process_value()})
-            self.savelogic().update_additional_parameters({'{}_control_variable'.format(self.pid_name):
-                                                           self.controller().get_control_value()})
-            self.savelogic().update_additional_parameters({'{}_last_update'.format(self.pid_name): time.time()})
+        if self.enabled:
+            self.timer.start(self.timestep * 1000)  # in ms
 
 
 
