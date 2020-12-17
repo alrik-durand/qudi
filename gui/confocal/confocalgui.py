@@ -493,6 +493,7 @@ class ConfocalGui(GUIBase):
         self._scanning_logic.signal_depth_image_updated.connect(self.refresh_depth_image)
         self._optimizer_logic.sigImageUpdated.connect(self.refresh_refocus_image)
         self._scanning_logic.sigImageXYInitialized.connect(self.adjust_xy_window)
+        self._scanning_logic.sigImageXYInitialized.connect(self.refresh_counter_channels)
         self._scanning_logic.sigImageDepthInitialized.connect(self.adjust_depth_window)
 
         # Connect the signal from the logic with an update of the cursor position
@@ -1521,6 +1522,25 @@ class ConfocalGui(GUIBase):
         xy_viewbox.updateAutoRange()
         xy_viewbox.updateViewRange()
         self.update_roi_xy()
+
+    def refresh_counter_channels(self):
+        """ Function called to refresh the combobox counts channels """
+        last_xy_index = self._mw.xy_channel_ComboBox.currentIndex()
+        scan_channels = self._scanning_logic.get_scanner_count_channels()
+        self._mw.xy_channel_ComboBox.clear()
+        for n, ch in enumerate(scan_channels):
+            self._mw.xy_channel_ComboBox.addItem(str(ch), n)
+        index = last_xy_index if last_xy_index < len(scan_channels) else 0
+        self._mw.xy_channel_ComboBox.setCurrentIndex(index)
+        self.update_xy_channel(index)
+
+        last_depth_index = self._mw.depth_channel_ComboBox.currentIndex()
+        self._mw.depth_channel_ComboBox.clear()
+        for n, ch in enumerate(scan_channels):
+            self._mw.depth_channel_ComboBox.addItem(str(ch), n)
+        index = last_depth_index if last_depth_index < len(scan_channels) else 0
+        self._mw.depth_channel_ComboBox.setCurrentIndex(index)
+        self.update_depth_channel(index)
 
     def adjust_depth_window(self):
         """ Fit the visible window in the depth scan to full view.
