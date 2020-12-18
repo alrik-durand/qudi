@@ -219,7 +219,7 @@ class Main(GUIBase):
         finals = np.array(finals)[:-1]
         finals = finals[finals > mini]
         finals = np.append(finals, mini)
-        finals = np.flip(finals)
+        finals = np.flip(finals, axis=0)
         return finals
 
     def get_logic_modules(self):

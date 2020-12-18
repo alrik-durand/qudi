@@ -27,6 +27,7 @@ from logic.generic_logic import GenericLogic
 from core.connector import Connector
 from core.statusvariable import StatusVar
 from core.configoption import ConfigOption
+from core.util.network import netobtain
 
 
 class LaserPowerController(GenericLogic):
@@ -149,15 +150,17 @@ class LaserPowerController(GenericLogic):
     def _get_control(self):
         """ Get the value of the control parameter """
         if self.process_control.is_connected:
-            return self.process_control().get_control_value(**self._channel_dict)
+            value = self.process_control().get_control_value(**self._channel_dict)
         elif self.scanner_logic.is_connected:
-            return self.scanner_logic().get_position()[self.scanner_channel_index]
+            value = self.scanner_logic().get_position()[self.scanner_channel_index]
         elif self.motor_hardware.is_connected:
-            return self.motor_hardware().get_pos()[self.motor_axis]
+            value = self.motor_hardware().get_pos()[self.motor_axis]
+        return float(netobtain(value))
 
     def _set_control(self, value):
         """ Set the value of the control parameter """
         limit_low, limit_high = self._get_control_limits()
+        value = float(value)
         if not (limit_low <= value <= limit_high):
             self.log.error('Value {} is out of bound : [{}, {}]'.format(value, limit_low, limit_high))
             return
@@ -189,7 +192,7 @@ class LaserPowerController(GenericLogic):
             limit_high = min(self.config_control_limits[1], limits[1])
         else:
             limit_high = limits[1]
-        return limit_low, limit_high
+        return float(netobtain(limit_low)), float(netobtain(limit_high))
 
     def get_power(self):
         """ Get the power sent to the setup. Returns zero is switch is off.
@@ -312,6 +315,7 @@ class LaserPowerController(GenericLogic):
             return
         self.module_state.run()
         mini, maxi = self._get_control_limits()
+        mini, maxi = float(mini), float(maxi)
         if self.config_type == 'Linear':
             self.calibration_x = np.linspace(mini, maxi, int(self.resolution))
         elif self.config_type == 'Logarithmic':
@@ -346,7 +350,7 @@ class LaserPowerController(GenericLogic):
         if index is None:  # All points are done
             self.module_state.stop()
             return
-        self._set_control(self.calibration_x[index])
+        self._set_control(float(self.calibration_x[index]))
         self.timer.start(float(self.delay)*1e3)
 
     def _next_point_measure_power(self):
