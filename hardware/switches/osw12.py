@@ -114,8 +114,7 @@ class OSW12(Base, SwitchInterface):
 
         @return dict: All the current states of the switches in the form {"switch": "state"}
         """
-        with self.lock:
-            return {switch: self.get_state(switch) for switch in self.available_states}
+        return {switch: self.get_state(switch) for switch in self.available_states}
 
     @states.setter
     def states(self, state_dict):
@@ -127,9 +126,8 @@ class OSW12(Base, SwitchInterface):
         @param dict state_dict: state dict of the form {"switch": "state"}
         """
         assert isinstance(state_dict, dict), 'Parameter "state_dict" must be dict type'
-        with self.lock:
-            for switch, state in state_dict.items():
-                self.set_state(switch, state)
+        for switch, state in state_dict.items():
+            self.set_state(switch, state)
 
     def get_state(self, switch):
         """ Query state of single switch by name
@@ -140,16 +138,15 @@ class OSW12(Base, SwitchInterface):
         avail_states = self.available_states
         assert switch in avail_states, 'Invalid switch name "{0}"'.format(switch)
 
-        with self.lock:
-            for attempt in range(3):
-                try:
-                    response = self._instrument.query('S?').strip()
-                except visa.VisaIOError:
-                    self.log.debug('Hardware query raised VisaIOError, trying again...')
-                else:
-                    assert response in {'1', '2'}, f'Unexpected return value "{response}"'
-                    return avail_states[switch][int(response == '1')]
-            raise Exception('Hardware did not respond after 3 attempts. Visa error')
+        for attempt in range(3):
+            try:
+                response = self._instrument.query('S?').strip()
+            except visa.VisaIOError:
+                self.log.debug('Hardware query raised VisaIOError, trying again...')
+            else:
+                assert response in {'1', '2'}, f'Unexpected return value "{response}"'
+                return avail_states[switch][int(response == '1')]
+        raise Exception('Hardware did not respond after 3 attempts. Visa error')
 
     def set_state(self, switch, state):
         """ Query state of single switch by name
@@ -161,10 +158,9 @@ class OSW12(Base, SwitchInterface):
         assert switch in avail_states, f'Invalid switch name: "{switch}"'
         assert state in avail_states[switch], f'Invalid state name "{state}" for switch "{switch}"'
 
-        with self.lock:
-            direction = avail_states[switch].index(state)
-            self._instrument.write('S {0:d}'.format(1 if direction else 2))
-            time.sleep(0.1)
+        direction = avail_states[switch].index(state)
+        self._instrument.write('S {0:d}'.format(1 if direction else 2))
+        time.sleep(0.1)
 
-            # FIXME: For some reason first returned value is not updated yet, let's clear it.
-            _ = self.states
+        # FIXME: For some reason first returned value is not updated yet, let's clear it.
+        _ = self.states
