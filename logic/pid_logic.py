@@ -53,7 +53,7 @@ class PIDLogic(GenericLogic):
     save_to_metadata = ConfigOption('save_to_metadata', True)
 
     # status vars
-    bufferLength = StatusVar('bufferlength', 1000)
+    buffer_length = StatusVar('buffer_length', 1000)
     timestep = ConfigOption('timestep', 100e-3)  # timestep in seconds
 
     history = None
@@ -64,6 +64,7 @@ class PIDLogic(GenericLogic):
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
         self.threadlock = Mutex()
+        self.enabled = False
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -120,8 +121,6 @@ class PIDLogic(GenericLogic):
         self.sigUpdateDisplay.emit()
         if self.enabled:
             self.timer.start(self.timestep * 1000)  # in ms
-
-
 
     def get_saving_state(self):
         """ Return whether we are saving data

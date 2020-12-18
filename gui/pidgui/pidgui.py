@@ -176,7 +176,7 @@ class PIDGui(GUIBase):
         """ The function that grabs the data and sends it to the plot.
         """
 
-        if self.pidlogic().module_state() != 'idle':
+        if self.pidlogic().enabled:
             self._mw.process_value_Label.setText(
                 '<font color={0}>{1:,.3f}</font>'.format(
                 palette.c1.name(),
@@ -214,7 +214,7 @@ class PIDGui(GUIBase):
         else:
             self._mw.record_control_Action.setText('Start Saving Data')
 
-        if self.pidlogic().module_state() != 'idle':
+        if self.pidlogic().enabled:
             self._mw.start_control_Action.setText('Stop')
         else:
             self._mw.start_control_Action.setText('Start')
