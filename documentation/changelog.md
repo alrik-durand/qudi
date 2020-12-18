@@ -92,9 +92,8 @@ please use _ni_x_series_in_streamer.py_ as hardware module.
 * New SwitchInterface and updated logic plus GUI
 * Added biexponential fit function, model and estimator
 * Added a hardware module to interface Minicircuit SPDT switch via SwitchInterface
-*
 * Added a hardware file to interface Thorlabs MFF101 flipper via SwitchInterface
-*
+* Added hardware module to interface NI analog output cards via ProcessControlInterface
 
 
 Config changes:
