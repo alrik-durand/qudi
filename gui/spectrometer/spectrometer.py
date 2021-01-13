@@ -39,81 +39,59 @@ from qtpy import QtWidgets
 from qtpy import uic
 from gui.gui_components.colorbar.colorbar import ColorbarWidget
 
+
 class MainWindow(QtWidgets.QMainWindow):
 
     def __init__(self):
-        """ Create the laser scanner window.
-        """
-        # Get the path to the *.ui file
         this_dir = os.path.dirname(__file__)
         ui_file = os.path.join(this_dir, 'ui_mainwindow.ui')
-
-        # Load it
         super().__init__()
         uic.loadUi(ui_file, self)
         self.show()
+
 
 class SettingsTab(QtWidgets.QWidget):
 
     def __init__(self):
-        """ Create the laser scanner window.
-        """
-        # Get the path to the *.ui file
         this_dir = os.path.dirname(__file__)
         ui_file = os.path.join(this_dir, 'ui_settings_tab.ui')
-
-        # Load it
         super().__init__()
         uic.loadUi(ui_file, self)
         self.show()
+
 
 class ImageTab(QtWidgets.QWidget):
 
     def __init__(self):
-        """ Create the laser scanner window.
-        """
-        # Get the path to the *.ui file
         this_dir = os.path.dirname(__file__)
         ui_file = os.path.join(this_dir, 'ui_image_tab.ui')
-
-        # Load it
         super().__init__()
         uic.loadUi(ui_file, self)
         self.show()
+
 
 class AlignementTab(QtWidgets.QWidget):
 
     def __init__(self):
-        """ Create the laser scanner window.
-        """
-        # Get the path to the *.ui file
         this_dir = os.path.dirname(__file__)
         ui_file = os.path.join(this_dir, 'ui_alignement_tab.ui')
-
-        # Load it
         super().__init__()
         uic.loadUi(ui_file, self)
         self.show()
 
-class SpectrumTab(QtWidgets.QWidget):
 
+class SpectrumTab(QtWidgets.QWidget):
     def __init__(self):
-        """ Create the laser scanner window.
-        """
-        # Get the path to the *.ui file
         this_dir = os.path.dirname(__file__)
         ui_file = os.path.join(this_dir, 'ui_spectrum_tab.ui')
-
-        # Load it
         super().__init__()
         uic.loadUi(ui_file, self)
         self.show()
 
 
 class Main(GUIBase):
-    """
-    """
-    # declare connectors
+    """ GUI module to interface a spectrometer """
+
     spectrumlogic = Connector(interface='SpectrumLogic')
     savelogic = Connector(interface='SaveLogic')
 
@@ -148,9 +126,7 @@ class Main(GUIBase):
         super().__init__(config=config, **kwargs)
 
     def on_activate(self):
-        """ Definition and initialisation of the GUI.
-        """
-        self._spectrumlogic = self.spectrumlogic()
+        """ Definition and initialisation of the GUI. """
 
         # setting up the window
         self._mw = MainWindow()
@@ -174,15 +150,15 @@ class Main(GUIBase):
         self._track_selector = []
 
         if not self._image_exposure_time:
-            self._image_exposure_time = self._spectrumlogic.exposure_time
+            self._image_exposure_time = self.spectrumlogic().exposure_time
         if not self._image_readout_speed:
-            self._image_readout_speed = self._spectrumlogic.readout_speed
+            self._image_readout_speed = self.spectrumlogic().readout_speed
         if not self._alignement_exposure_time:
-            self._alignement_exposure_time = self._spectrumlogic.exposure_time
+            self._alignement_exposure_time = self.spectrumlogic().exposure_time
         if not self._spectrum_exposure_time:
-            self._spectrum_exposure_time = self._spectrumlogic.exposure_time
+            self._spectrum_exposure_time = self.spectrumlogic().exposure_time
         if not self._spectrum_readout_speed:
-            self._spectrum_readout_speed = self._spectrumlogic.readout_speed
+            self._spectrum_readout_speed = self.spectrumlogic().readout_speed
 
         self._activate_settings_tab()
         self._activate_image_tab()
@@ -194,8 +170,7 @@ class Main(GUIBase):
         self._manage_stop_acquisition()
 
     def on_deactivate(self):
-        """ Deinitialisation performed during deactivation of the module.
-        """
+        """ Deinitialisation performed during deactivation of the module. """
         self._alignement_read_mode = self._alignement_tab.read_modes.currentData()
         self._alignement_exposure_time = self.alignement_exposure_time_widget.value()
         self._image_acquisition_mode = self._image_tab.acquisition_modes.currentData()
@@ -209,15 +184,15 @@ class Main(GUIBase):
         self._mw.close()
 
     def show(self):
-        """Make window visible and put it above all other windows.
-        """
+        """ Make window visible and put it above all other windows """
         QtWidgets.QMainWindow.show(self._mw)
         self._mw.activateWindow()
         self._mw.raise_()
 
     def _activate_settings_tab(self):
+        """ Initialization method for the setting tab """
 
-        spectro_constraints = self._spectrumlogic.spectro_constraints
+        spectro_constraints = self.spectrumlogic().spectro_constraints
 
         self._grating_buttons = [self._settings_tab.grating_1, self._settings_tab.grating_2, self._settings_tab.grating_3]
         self._input_port_buttons = [self._settings_tab.input_front, self._settings_tab.input_side]
@@ -227,10 +202,10 @@ class Main(GUIBase):
 
         for i in range(3):
             self._grating_buttons[i].setText('{}rpm'.format(
-                round(self._spectrumlogic.spectro_constraints.gratings[i].ruling/1000)))
+                round(self.spectrumlogic().spectro_constraints.gratings[i].ruling/1000)))
             self._grating_buttons[i].setCheckable(True)
             self._grating_buttons[i].clicked.connect(partial(self._manage_grating_buttons, i))
-            if i == self._spectrumlogic.grating_index:
+            if i == self.spectrumlogic().grating_index:
                 self._grating_buttons[i].setDown(True)
 
         self._input_ports = [port for port in spectro_constraints.ports if port.type in [PortType.INPUT_FRONT, PortType.INPUT_SIDE]]
@@ -242,12 +217,12 @@ class Main(GUIBase):
 
                 self._input_port_buttons[i].setText(self._input_ports[i].type.name[6:].lower())
                 self._input_port_buttons[i].setCheckable(True)
-                if self._input_ports[i].type.name == self._spectrumlogic.input_port:
+                if self._input_ports[i].type.name == self.spectrumlogic().input_port:
                     self._input_port_buttons[i].setDown(True)
 
                 input_widget = ScienDSpinBox()
                 input_widget.setRange(self._input_ports[i].constraints.min, self._input_ports[i].constraints.max)
-                input_widget.setValue(self._spectrumlogic.get_input_slit_width(self._input_ports[i].type.name))
+                input_widget.setValue(self.spectrumlogic().get_input_slit_width(self._input_ports[i].type.name))
                 input_widget.setSuffix('m')
                 input_widget.editingFinished.connect(partial(self._manage_slit_width, i))
                 self._input_slit_width.append(input_widget)
@@ -263,12 +238,12 @@ class Main(GUIBase):
 
                 self._output_port_buttons[i].setText(self._output_ports[i].type.name[7:].lower())
                 self._output_port_buttons[i].setCheckable(True)
-                if self._output_ports[i].type.name == self._spectrumlogic.output_port:
+                if self._output_ports[i].type.name == self.spectrumlogic().output_port:
                     self._output_port_buttons[i].setDown(True)
 
                 output_widget = ScienDSpinBox()
                 output_widget.setRange(self._output_ports[i].constraints.min, self._output_ports[i].constraints.max)
-                output_widget.setValue(self._spectrumlogic.get_output_slit_width(self._output_ports[i].type.name))
+                output_widget.setValue(self.spectrumlogic().get_output_slit_width(self._output_ports[i].type.name))
                 output_widget.setSuffix('m')
                 output_widget.editingFinished.connect(partial(self._manage_slit_width, i+2))
                 self._output_slit_width.append(output_widget)
@@ -281,63 +256,64 @@ class Main(GUIBase):
                 self._output_port_buttons[i].setEnabled(False)
 
         self._calibration_widget = ScienDSpinBox()
-        self._calibration_widget.setValue(self._spectrumlogic.wavelength_calibration)
+        self._calibration_widget.setValue(self.spectrumlogic().wavelength_calibration)
         self._calibration_widget.setSuffix('m')
         self._settings_tab.calibration_layout.addWidget(self._calibration_widget)
 
-        for gain in self._spectrumlogic.camera_constraints.internal_gains:
+        for gain in self.spectrumlogic().camera_constraints.internal_gains:
             self._settings_tab.camera_gains.addItem(str(gain), gain)
-            if gain == self._spectrumlogic.camera_gain:
+            if gain == self.spectrumlogic().camera_gain:
                 self._settings_tab.camera_gains.setCurrentText(str(gain))
 
-        for trigger_mode in self._spectrumlogic.camera_constraints.trigger_modes:
+        for trigger_mode in self.spectrumlogic().camera_constraints.trigger_modes:
             self._settings_tab.trigger_modes.addItem(trigger_mode, trigger_mode)
-            if trigger_mode == self._spectrumlogic.trigger_mode:
+            if trigger_mode == self.spectrumlogic().trigger_mode:
                 self._settings_tab.trigger_modes.setCurrentText(trigger_mode)
 
         self._temperature_widget = ScienDSpinBox()
         self._temperature_widget.setRange(-273.15, 500)
-        self._temperature_widget.setValue(self._spectrumlogic.temperature_setpoint-273.15)
+        self._temperature_widget.setValue(self.spectrumlogic().temperature_setpoint-273.15)
         self._temperature_widget.setSuffix('°C')
         self._settings_tab.camera_cooler_layout.addWidget(self._temperature_widget)
 
         self._settings_tab.cooler_on.clicked.connect(self._manage_cooler_button)
-        if self._spectrumlogic.cooler_status:
+        if self.spectrumlogic().cooler_status:
             self._settings_tab.cooler_on.setDown(True)
             self._settings_tab.cooler_on.setText("OFF")
             self._mw.cooler_on_label.setText("Cooler ON")
         else:
             self._settings_tab.cooler_on.setText("ON")
             self._mw.cooler_on_label.setText("Cooler OFF")
-        self._mw.camera_temperature.setText("{}°C".format(round(self._spectrumlogic.camera_temperature-273.15, 2)))
+        self._mw.camera_temperature.setText("{}°C".format(round(self.spectrumlogic().camera_temperature-273.15, 2)))
 
         self._center_wavelength_widget = ScienDSpinBox()
         self._center_wavelength_widget.setMinimum(0)
-        self._center_wavelength_widget.setValue(self._spectrumlogic.center_wavelength)
+        self._center_wavelength_widget.setValue(self.spectrumlogic().center_wavelength)
         self._center_wavelength_widget.setSuffix("m")
         self._mw.center_wavelength.addWidget(self._center_wavelength_widget, 1)
         self._mw.go_to_wavelength.clicked.connect(self._manage_center_wavelength)
-        self._mw.center_wavelength_current.setText("{:.2r}m".format(ScaledFloat(self._spectrumlogic.center_wavelength)))
+        self._mw.center_wavelength_current.setText("{:.2r}m".format(ScaledFloat(self.spectrumlogic().center_wavelength)))
 
         self._calibration_widget.editingFinished.connect(self.set_settings_params)
         self._settings_tab.camera_gains.currentTextChanged.connect(self.set_settings_params)
         self._settings_tab.trigger_modes.currentTextChanged.connect(self.set_settings_params)
         self._temperature_widget.editingFinished.connect(self.set_settings_params)
-        if not self._spectrumlogic.camera_constraints.has_shutter:
+        if not self.spectrumlogic().camera_constraints.has_shutter:
             self._settings_tab.shutter_modes.setEnabled(False)
         else:
-            self._settings_tab.shutter_modes.setCurrentText(self._spectrumlogic.shutter_state)
+            self._settings_tab.shutter_modes.setCurrentText(self.spectrumlogic().shutter_state)
             self._settings_tab.shutter_modes.currentTextChanged.connect(self.set_settings_params)
 
         self._update_temperature_timer = QtCore.QTimer()
         self._update_temperature_timer.timeout.connect(self._update_temperature)
         self._update_temperature_timer.start(1000)
 
-        self._spectrumlogic.sigUpdateSettings.connect(self._update_settings)
+        self.spectrumlogic().sigUpdateSettings.connect(self._update_settings)
 
     def _activate_image_tab(self):
+        """ Initialization method for the image tab """
 
-        for read_mode in self._spectrumlogic.camera_constraints.read_modes:
+        for read_mode in self.spectrumlogic().camera_constraints.read_modes:
             if read_mode.name[:5] == "IMAGE":
                 self._image_tab.read_modes.addItem(read_mode.name, read_mode.name)
                 if read_mode == self._image_read_mode:
@@ -355,7 +331,7 @@ class Main(GUIBase):
         self.image_exposure_time_widget.setSuffix('s')
         self._image_tab.exposure_time_layout.addWidget(self.image_exposure_time_widget)
 
-        for readout_speed in self._spectrumlogic.camera_constraints.readout_speeds:
+        for readout_speed in self.spectrumlogic().camera_constraints.readout_speeds:
             self._image_tab.readout_speed.addItem("{:.2r}Hz".format(ScaledFloat(readout_speed)), readout_speed)
             if readout_speed == self._image_readout_speed:
                 self._image_tab.readout_speed.setCurrentText("{:.2r}Hz".format(ScaledFloat(readout_speed)))
@@ -399,8 +375,8 @@ class Main(GUIBase):
         self._image_advanced_widget.hide()
         self._image_tab.graph.addItem(self._image_advanced_widget)
 
-        self._image_tab.horizontal_binning.setRange(1, self._spectrumlogic.camera_constraints.width-1)
-        self._image_tab.vertical_binning.setRange(1, self._spectrumlogic.camera_constraints.height-1)
+        self._image_tab.horizontal_binning.setRange(1, self.spectrumlogic().camera_constraints.width-1)
+        self._image_tab.vertical_binning.setRange(1, self.spectrumlogic().camera_constraints.height-1)
 
 
         self._image_tab.horizontal_binning.editingFinished.connect(self.set_image_params)
@@ -411,6 +387,7 @@ class Main(GUIBase):
         self._image_tab.readout_speed.currentTextChanged.connect(self.set_image_params)
 
     def _activate_alignement_tab(self):
+        """ Initialization method for the alignment tab """
 
         self.time_window_widget = ScienDSpinBox()
         self.time_window_widget.setMinimum(0)
@@ -420,7 +397,7 @@ class Main(GUIBase):
         self._alignement_tab.time_window_layout.addWidget(self.time_window_widget,1)
         self._alignement_tab.clean.clicked.connect(self._clean_time_window)
 
-        for read_mode in self._spectrumlogic.camera_constraints.read_modes:
+        for read_mode in self.spectrumlogic().camera_constraints.read_modes:
             self._alignement_tab.read_modes.addItem(str(read_mode.name), read_mode.name)
             if read_mode == self._alignement_read_mode:
                 self._alignement_tab.read_modes.setCurrentText(str(read_mode.name))
@@ -445,8 +422,9 @@ class Main(GUIBase):
         self.alignement_exposure_time_widget.editingFinished.connect(self.set_alignement_params)
 
     def _activate_spectrum_tab(self):
+        """ Initialization method for the spectrum tab """
 
-        for read_mode in self._spectrumlogic.camera_constraints.read_modes:
+        for read_mode in self.spectrumlogic().camera_constraints.read_modes:
             if read_mode.name[:5] != "IMAGE":
                 self._spectrum_tab.read_modes.addItem(str(read_mode.name), read_mode.name)
                 if read_mode == self._spectrum_read_mode:
@@ -463,18 +441,18 @@ class Main(GUIBase):
         self.spectrum_exposure_time_widget.setSuffix('s')
         self._spectrum_tab.exposure_time_layout.addWidget(self.spectrum_exposure_time_widget)
 
-        for readout_speed in self._spectrumlogic.camera_constraints.readout_speeds:
+        for readout_speed in self.spectrumlogic().camera_constraints.readout_speeds:
             self._spectrum_tab.readout_speed.addItem("{:.2r}Hz".format(ScaledFloat(readout_speed)), readout_speed)
             if readout_speed == self._spectrum_readout_speed:
                 self._spectrum_tab.readout_speed.setCurrentText("{:.2r}Hz".format(ScaledFloat(readout_speed)))
 
         self._spectrum_scan_delay_widget = ScienDSpinBox()
         self._spectrum_scan_delay_widget.setMinimum(0)
-        self._spectrum_scan_delay_widget.setValue(self._spectrumlogic.scan_delay)
+        self._spectrum_scan_delay_widget.setValue(self.spectrumlogic().scan_delay)
         self._spectrum_scan_delay_widget.setSuffix('s')
         self._spectrum_tab.scan_delay.addWidget(self._spectrum_scan_delay_widget)
 
-        self._spectrum_tab.scan_number_spin.setValue(self._spectrumlogic.number_of_scan)
+        self._spectrum_tab.scan_number_spin.setValue(self.spectrumlogic().number_of_scan)
 
         self._spectrum_tab.save.clicked.connect(partial(self.save_data, 1))
         self._save_data_buttons.append(self._spectrum_tab.save)
@@ -497,104 +475,104 @@ class Main(GUIBase):
 
     def _update_settings(self):
         """
-        self._manage_grating_buttons(self._spectrumlogic.grating_index)
+        self._manage_grating_buttons(self.spectrumlogic().grating_index)
 
         if len(self._input_ports)>1:
-            input_port_index = 0 if self._spectrumlogic.input_port == PortType.INPUT_FRONT else 1
+            input_port_index = 0 if self.spectrumlogic().input_port == PortType.INPUT_FRONT else 1
             self._manage_port_buttons(input_port_index)
-            self._input_slit_width[input_port_index].setValue(self._spectrumlogic.input_slit_width)
+            self._input_slit_width[input_port_index].setValue(self.spectrumlogic().input_slit_width)
         else:
-            self._input_slit_width[0].setValue(self._spectrumlogic.input_slit_width)
+            self._input_slit_width[0].setValue(self.spectrumlogic().input_slit_width)
         if len(self._output_ports)>1:
-            output_port_index = 0 if self._spectrumlogic.output_port == PortType.OUTPUT_FRONT else 1
+            output_port_index = 0 if self.spectrumlogic().output_port == PortType.OUTPUT_FRONT else 1
             self._manage_port_buttons(output_port_index+2)
-            self._output_slit_width[output_port_index] = self._spectrumlogic.output_slit_width
+            self._output_slit_width[output_port_index] = self.spectrumlogic().output_slit_width
         else:
-            self._output_slit_width[0] = self._spectrumlogic.output_slit_width
+            self._output_slit_width[0] = self.spectrumlogic().output_slit_width
 
-        self._calibration_widget.setValue(self._spectrumlogic.wavelength_calibration)
-        self._settings_tab.camera_gains.setCurrentText(str(self._spectrumlogic.camera_gain))
-        self._settings_tab.trigger_modes.setCurrentText(self._spectrumlogic.trigger_mode)
-        self._temperature_widget.setValue(self._spectrumlogic.temperature_setpoint-273.15)
+        self._calibration_widget.setValue(self.spectrumlogic().wavelength_calibration)
+        self._settings_tab.camera_gains.setCurrentText(str(self.spectrumlogic().camera_gain))
+        self._settings_tab.trigger_modes.setCurrentText(self.spectrumlogic().trigger_mode)
+        self._temperature_widget.setValue(self.spectrumlogic().temperature_setpoint-273.15)
 
-        cooler_on = not self._spectrumlogic.cooler_status
+        cooler_on = not self.spectrumlogic().cooler_status
         if self._settings_tab.cooler_on.isChecked() == cooler_on:
             self._settings_tab.cooler_on.setChecked(cooler_on)
             self._settings_tab.cooler_on.setDown(cooler_on)
             self._settings_tab.cooler_on.setText("ON" if cooler_on else "OFF")
             self._mw.cooler_on_label.setText("Cooler {}".format("ON" if not cooler_on else "OFF"))
-        if self._spectrumlogic.camera_constraints.has_shutter:
-            self._settings_tab.shutter_modes.setCurrentText(self._spectrumlogic.shutter_state)
+        if self.spectrumlogic().camera_constraints.has_shutter:
+            self._settings_tab.shutter_modes.setCurrentText(self.spectrumlogic().shutter_state)
 
-        self._mw.center_wavelength_current.setText("{:.2r}m".format(ScaledFloat(self._spectrumlogic.center_wavelength)))
+        self._mw.center_wavelength_current.setText("{:.2r}m".format(ScaledFloat(self.spectrumlogic().center_wavelength)))
         """
         pass
 
     def set_settings_params(self):
 
-        self._spectrumlogic.wavelength_calibration = self._calibration_widget.value()
-        self._spectrumlogic.camera_gain = self._settings_tab.camera_gains.currentData()
-        self._spectrumlogic.trigger_mode = self._settings_tab.trigger_modes.currentData()
-        self._spectrumlogic.temperature_setpoint = self._temperature_widget.value()+273.15
-        self._spectrumlogic.shutter_state = self._settings_tab.shutter_modes.currentText()
+        self.spectrumlogic().wavelength_calibration = self._calibration_widget.value()
+        self.spectrumlogic().camera_gain = self._settings_tab.camera_gains.currentData()
+        self.spectrumlogic().trigger_mode = self._settings_tab.trigger_modes.currentData()
+        self.spectrumlogic().temperature_setpoint = self._temperature_widget.value()+273.15
+        self.spectrumlogic().shutter_state = self._settings_tab.shutter_modes.currentText()
 
     def set_image_params(self):
 
         self._manage_image_advanced()
-        self._spectrumlogic.acquisition_mode = self._image_tab.acquisition_modes.currentData()
-        self._spectrumlogic.read_mode = self._image_tab.read_modes.currentData()
-        self._spectrumlogic.exposure_time = self.image_exposure_time_widget.value()
-        self._spectrumlogic.readout_speed = self._image_tab.readout_speed.currentData()
+        self.spectrumlogic().acquisition_mode = self._image_tab.acquisition_modes.currentData()
+        self.spectrumlogic().read_mode = self._image_tab.read_modes.currentData()
+        self.spectrumlogic().exposure_time = self.image_exposure_time_widget.value()
+        self.spectrumlogic().readout_speed = self._image_tab.readout_speed.currentData()
 
-        self._spectrumlogic._update_acquisition_params()
-        self._image_params = self._spectrumlogic.acquisition_params
+        self.spectrumlogic()._update_acquisition_params()
+        self._image_params = self.spectrumlogic().acquisition_params
 
     def set_alignement_params(self):
 
-        self._spectrumlogic.acquisition_mode = "LIVE_SCAN"
-        self._spectrumlogic.read_mode = self._alignement_tab.read_modes.currentData()
-        self._spectrumlogic.exposure_time = self.alignement_exposure_time_widget.value()
-        self._spectrumlogic.readout_speed = max(self._spectrumlogic.camera_constraints.readout_speeds)
+        self.spectrumlogic().acquisition_mode = "LIVE_SCAN"
+        self.spectrumlogic().read_mode = self._alignement_tab.read_modes.currentData()
+        self.spectrumlogic().exposure_time = self.alignement_exposure_time_widget.value()
+        self.spectrumlogic().readout_speed = max(self.spectrumlogic().camera_constraints.readout_speeds)
 
         self._manage_tracks()
         self._change_time_window()
 
     def set_spectrum_params(self):
 
-        self._spectrumlogic.acquisition_mode = self._spectrum_tab.acquisition_modes.currentData()
-        self._spectrumlogic.read_mode = self._spectrum_tab.read_modes.currentData()
-        self._spectrumlogic.exposure_time = self.spectrum_exposure_time_widget.value()
-        self._spectrumlogic.readout_speed = self._spectrum_tab.readout_speed.currentData()
-        self._spectrumlogic.scan_delay = self._spectrum_scan_delay_widget.value()
-        self._spectrumlogic.number_of_scan = self._spectrum_tab.scan_number_spin.value()
+        self.spectrumlogic().acquisition_mode = self._spectrum_tab.acquisition_modes.currentData()
+        self.spectrumlogic().read_mode = self._spectrum_tab.read_modes.currentData()
+        self.spectrumlogic().exposure_time = self.spectrum_exposure_time_widget.value()
+        self.spectrumlogic().readout_speed = self._spectrum_tab.readout_speed.currentData()
+        self.spectrumlogic().scan_delay = self._spectrum_scan_delay_widget.value()
+        self.spectrumlogic().number_of_scan = self._spectrum_tab.scan_number_spin.value()
 
         self._manage_tracks()
-        self._spectrumlogic._update_acquisition_params()
-        self._spectrum_params = self._spectrumlogic.acquisition_params
+        self.spectrumlogic()._update_acquisition_params()
+        self._spectrum_params = self.spectrumlogic().acquisition_params
 
     def start_dark_acquisition(self, index):
 
         self._manage_start_acquisition(index)
 
-        self._spectrumlogic.acquisition_mode = "SINGLE_SCAN"
-        self._spectrumlogic.shutter_state = "CLOSED"
-        self._spectrumlogic.sigUpdateData.connect(partial(self._update_dark, index))
+        self.spectrumlogic().acquisition_mode = "SINGLE_SCAN"
+        self.spectrumlogic().shutter_state = "CLOSED"
+        self.spectrumlogic().sigUpdateData.connect(partial(self._update_dark, index))
 
         if index == 0:
-            self._spectrumlogic.read_modes = self._image_tab.read_modes.currentData()
-            self._spectrumlogic.exposure_time = self.image_exposure_time_widget.value()
-            self._spectrumlogic.readout_speed = self._image_tab.readout_speed.currentData()
+            self.spectrumlogic().read_modes = self._image_tab.read_modes.currentData()
+            self.spectrumlogic().exposure_time = self.image_exposure_time_widget.value()
+            self.spectrumlogic().readout_speed = self._image_tab.readout_speed.currentData()
         elif index == 1:
-            self._spectrumlogic.read_modes = self._spectrum_tab.read_modes.currentData()
-            self._spectrumlogic.exposure_time = self.spectrum_exposure_time_widget.value()
-            self._spectrumlogic.readout_speed = self._spectrum_tab.readout_speed.currentData()
+            self.spectrumlogic().read_modes = self._spectrum_tab.read_modes.currentData()
+            self.spectrumlogic().exposure_time = self.spectrum_exposure_time_widget.value()
+            self.spectrumlogic().readout_speed = self._spectrum_tab.readout_speed.currentData()
 
-        self._spectrumlogic.start_acquisition()
+        self.spectrumlogic().start_acquisition()
 
     def start_acquisition(self, index):
 
         self._manage_start_acquisition(index)
-        self._spectrumlogic.sigUpdateData.connect(partial(self._update_data, index))
+        self.spectrumlogic().sigUpdateData.connect(partial(self._update_data, index))
 
         if index==0:
             self.set_image_params()
@@ -603,12 +581,12 @@ class Main(GUIBase):
         elif index==2:
             self.set_spectrum_params()
 
-        self._spectrumlogic.start_acquisition()
+        self.spectrumlogic().start_acquisition()
 
     def stop_acquisition(self):
 
-        self._spectrumlogic.stop_acquisition()
-        self._spectrumlogic.sigUpdateData.disconnect()
+        self.spectrumlogic().stop_acquisition()
+        self.spectrumlogic().sigUpdateData.disconnect()
         self._manage_stop_acquisition()
 
     def _manage_grating_buttons(self, index):
@@ -618,19 +596,19 @@ class Main(GUIBase):
             if i == index:
                 btn.setChecked(True)
                 btn.setDown(True)
-                self._spectrumlogic.grating_index = i
+                self.spectrumlogic().grating_index = i
             else:
                 btn.setChecked(False)
                 btn.setDown(False)
-        self._mw.center_wavelength_current.setText("{:.2r}m".format(ScaledFloat(self._spectrumlogic.center_wavelength)))
-        self._calibration_widget.setValue(self._spectrumlogic.wavelength_calibration)
+        self._mw.center_wavelength_current.setText("{:.2r}m".format(ScaledFloat(self.spectrumlogic().center_wavelength)))
+        self._calibration_widget.setValue(self.spectrumlogic().wavelength_calibration)
 
     def _manage_port_buttons(self, index):
         for i in range(2):
             if index < 2:
                 btn = self._input_port_buttons[i]
                 if i == index:
-                    self._spectrumlogic.input_port = self._spectrumlogic.spectro_constraints.ports[i].type
+                    self.spectrumlogic().input_port = self.spectrumlogic().spectro_constraints.ports[i].type
                     btn.setChecked(True)
                     btn.setDown(True)
                 else:
@@ -639,7 +617,7 @@ class Main(GUIBase):
             elif index > 1:
                 btn = self._output_port_buttons[i]
                 if i+2 == index:
-                    self._spectrumlogic.output_port = self._spectrumlogic.spectro_constraints.ports[i+2].type
+                    self.spectrumlogic().output_port = self.spectrumlogic().spectro_constraints.ports[i+2].type
                     btn.setChecked(True)
                     btn.setDown(True)
                 else:
@@ -649,13 +627,13 @@ class Main(GUIBase):
     def _manage_slit_width(self, index):
 
         if index<2:
-            self._spectrumlogic.set_input_slit_width(self._input_slit_width[index].value(), self._input_ports[index].type)
+            self.spectrumlogic().set_input_slit_width(self._input_slit_width[index].value(), self._input_ports[index].type)
         elif index>1:
-            self._spectrumlogic.set_output_slit_width(self._output_slit_width[index-2].value(), self._output_ports[index-2].type)
+            self.spectrumlogic().set_output_slit_width(self._output_slit_width[index-2].value(), self._output_ports[index-2].type)
 
     def _manage_cooler_button(self):
-        cooler_on = not self._spectrumlogic.cooler_status
-        self._spectrumlogic.cooler_status = cooler_on
+        cooler_on = not self.spectrumlogic().cooler_status
+        self.spectrumlogic().cooler_status = cooler_on
         self._settings_tab.cooler_on.setChecked(cooler_on)
         self._settings_tab.cooler_on.setDown(cooler_on)
         self._settings_tab.cooler_on.setText("ON" if not cooler_on else "OFF")
@@ -663,8 +641,8 @@ class Main(GUIBase):
 
     def _manage_center_wavelength(self):
 
-        self._spectrumlogic.center_wavelength = self._center_wavelength_widget.value()
-        self._mw.center_wavelength_current.setText("{:.2r}m".format(ScaledFloat(self._spectrumlogic.center_wavelength)))
+        self.spectrumlogic().center_wavelength = self._center_wavelength_widget.value()
+        self._mw.center_wavelength_current.setText("{:.2r}m".format(ScaledFloat(self.spectrumlogic().center_wavelength)))
 
     def _manage_tracks(self):
         self._active_tracks = []
@@ -673,16 +651,16 @@ class Main(GUIBase):
                 track = list(self._track_selector[i].getRegion())
                 self._active_tracks.append(track[0])
                 self._active_tracks.append(track[1])
-        self._spectrumlogic.active_tracks = self._active_tracks
+        self.spectrumlogic().active_tracks = self._active_tracks
 
     def _manage_image_advanced(self):
 
         hbin = self._image_tab.horizontal_binning.value()
         vbin = self._image_tab.vertical_binning.value()
-        self._spectrumlogic.image_advanced_binning = (hbin, vbin)
+        self.spectrumlogic().image_advanced_binning = (hbin, vbin)
         image_advanced = self._image_advanced_widget.getArraySlice(self._image_data, self._image, returnSlice=False)[0]
         self._image_advanced = list(image_advanced[1])+list(image_advanced[0])
-        self._spectrumlogic.image_advanced_area = self._image_advanced
+        self.spectrumlogic().image_advanced_area = self._image_advanced
 
     def _manage_track_buttons(self, index):
 
@@ -701,7 +679,7 @@ class Main(GUIBase):
 
     def _update_temperature(self):
 
-        self._mw.camera_temperature.setText(str(round(self._spectrumlogic.camera_temperature-273.15, 2))+"°C")
+        self._mw.camera_temperature.setText(str(round(self.spectrumlogic().camera_temperature-273.15, 2))+"°C")
 
     def _manage_start_acquisition(self, index):
 
@@ -749,7 +727,7 @@ class Main(GUIBase):
 
     def _update_data(self, index):
 
-        data = np.array(self._spectrumlogic.acquired_data)
+        data = np.array(self.spectrumlogic().acquired_data)
 
         if index == 0:
 
@@ -759,17 +737,17 @@ class Main(GUIBase):
                 self._image_data = data
                 self._image_tab.dark_acquired_msg.setText("No Dark Acquired")
 
-            if self._spectrumlogic.read_mode == "IMAGE_ADVANCED":
+            if self.spectrumlogic().read_mode == "IMAGE_ADVANCED":
                 self._image.setRect(self._image_advanced_widget.parentBounds())
             else:
-                width = self._spectrumlogic.camera_constraints.width
-                height = self._spectrumlogic.camera_constraints.height
+                width = self.spectrumlogic().camera_constraints.width
+                height = self.spectrumlogic().camera_constraints.height
                 self._image.setRect(QtCore.QRect(0,0,width,height))
 
         elif index == 1:
 
             counts = data.sum()
-            x = self._counter_data[0]+self._spectrumlogic.exposure_time
+            x = self._counter_data[0]+self.spectrumlogic().exposure_time
             y = np.append(self._counter_data[1][1:], counts)
             self._counter_data = np.array([x, y])
             self._alignement_tab.graph.setRange(xRange=(x[-1]-self.time_window_widget.value(), x[-1]))
@@ -777,17 +755,17 @@ class Main(GUIBase):
 
         elif index == 2:
 
-            x = self._spectrumlogic.wavelength_spectrum
+            x = self.spectrumlogic().wavelength_spectrum
             if self._image_dark.shape == data.shape[:-1]:
                 y = data - self._spectrum_dark
             else:
                 y = data
                 self._spectrum_tab.dark_acquired_msg.setText("No Dark Acquired")
 
-            if self._spectrumlogic.acquisition_mode == "MULTI_SCAN":
+            if self.spectrumlogic().acquisition_mode == "MULTI_SCAN":
                 self._spectrum_data = np.array([[x, scan] for scan in y])
                 self._spectrum_tab.graph.clear()
-                if self._spectrumlogic.read_mode == "MULTIPLE_TRACKS":
+                if self.spectrumlogic().read_mode == "MULTIPLE_TRACKS":
                     i = 0
                     for track in y[-1]:
                         self._spectrum_tab.graph.plot(x, track, pen=self.track_colors[i])
@@ -797,7 +775,7 @@ class Main(GUIBase):
             else:
                 self._spectrum_data = np.array([x, y])
                 self._spectrum_tab.graph.clear()
-                if self._spectrumlogic.read_mode == "MULTIPLE_TRACKS":
+                if self.spectrumlogic().read_mode == "MULTIPLE_TRACKS":
                     i = 0
                     for track in y:
                         self._spectrum_tab.graph.plot(x, track, pen=self.track_colors[i])
@@ -805,13 +783,13 @@ class Main(GUIBase):
                 else:
                     self._spectrum_tab.graph.plot(x, y, pen=self.track_colors[0])
 
-        if not self._spectrumlogic.module_state() == 'locked':
-            self._spectrumlogic.sigUpdateData.disconnect()
+        if not self.spectrumlogic().module_state() == 'locked':
+            self.spectrumlogic().sigUpdateData.disconnect()
             self._manage_stop_acquisition()
 
     def _update_dark(self, index):
 
-        dark = np.array(self._spectrumlogic.acquired_data)
+        dark = np.array(self.spectrumlogic().acquired_data)
 
         if index == 0:
             self._image_dark = dark
@@ -820,9 +798,9 @@ class Main(GUIBase):
             self._spectrum_dark = dark
             self._spectrum_tab.dark_acquired_msg.setText("Dark Acquired")
 
-        self._spectrumlogic.sigUpdateData.disconnect()
+        self.spectrumlogic().sigUpdateData.disconnect()
         self._manage_stop_acquisition()
-        self._spectrumlogic.shutter_state = self._settings_tab.shutter_modes.currentText()
+        self.spectrumlogic().shutter_state = self._settings_tab.shutter_modes.currentText()
 
     def save_data(self, index):
 
