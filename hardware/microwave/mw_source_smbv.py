@@ -55,6 +55,8 @@ class MicrowaveSmbv(Base, MicrowaveInterface):
 
     # to limit the power to a lower value that the hardware can provide
     _max_power = ConfigOption('max_power', None)
+    _max_frequency = ConfigOption('max_frequency', None)
+    _min_frequency = ConfigOption('min_frequency', None)
 
     # Indicate how fast frequencies within a list or sweep mode can be changed:
     _FREQ_SWITCH_SPEED = 0.003  # Frequency switching speed in s (acc. to specs)
@@ -103,6 +105,7 @@ class MicrowaveSmbv(Base, MicrowaveInterface):
         limits = MicrowaveLimits()
         limits.supported_modes = (MicrowaveMode.CW, MicrowaveMode.SWEEP)
 
+        # Bellow are default values generally used. To set a custom range for hardware with options, use config.
         # values for SMBV100A
         limits.min_power = -145
         limits.max_power = 30
@@ -112,6 +115,11 @@ class MicrowaveSmbv(Base, MicrowaveInterface):
 
         if self.model == 'SMB100A':
             limits.max_frequency = 3.2e9
+        # in case a frequency maximum is set in config file :
+        if self._min_frequency is not None:
+            limits.min_frequency = self._min_frequency
+        if self._max_frequency is not None:
+            limits.max_frequency = self._max_frequency
 
         limits.list_minstep = 0.1
         limits.list_maxstep = limits.max_frequency - limits.min_frequency
