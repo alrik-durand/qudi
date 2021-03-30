@@ -24,7 +24,6 @@ import numpy as np
 import TimeTagger as tt
 from core.module import Base
 from core.configoption import ConfigOption
-import os
 
 
 class TimeTaggerFastCounter(Base, FastCounterInterface):
@@ -209,4 +208,3 @@ class TimeTaggerFastCounter(Base, FastCounterInterface):
     def get_binwidth(self):
         """ Returns the width of a single timebin in the timetrace in seconds. """
         return self._bin_width
-
