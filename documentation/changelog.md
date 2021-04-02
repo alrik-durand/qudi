@@ -4,6 +4,7 @@
 
 Changes/New features:
 
+* Added support for Keysight M8195A and M8190A AWGs.
 * Added functionality to simultaneously record multiple frequency ranges in the ODMR toolchain 
 in case the hardware supports it.
 * Cleanup/Improvement/Debug of POI manager (logic and GUI)
@@ -91,6 +92,9 @@ please use _ni_x_series_in_streamer.py_ as hardware module.
 * Added a config option to regulate pid logic timestep length
 * New SwitchInterface and updated logic plus GUI
 * Added biexponential fit function, model and estimator
+* Added custom circular loading indicator widget `qtwidgets.loading_indicator.CircleLoadingIndicator`
+* added property disable_wheel to custom ScienSponBox and ScienDSpinBox to deactivate wheel scrolling if required
+* Added possibility to fit data of all ranges in ODMR module when Fit range is -1
 * Added a hardware module to interface Minicircuit SPDT switch via SwitchInterface
 * Added a hardware file to interface Thorlabs MFF101 flipper via SwitchInterface
 * Added hardware module to interface NI analog output cards via ProcessControlInterface
