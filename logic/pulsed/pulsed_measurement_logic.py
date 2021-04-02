@@ -240,7 +240,7 @@ class PulsedMeasurementLogic(GenericLogic):
         settings_dict['bin_width'] = float(self.__fast_counter_binwidth)
         settings_dict['record_length'] = float(self.__fast_counter_record_length)
         settings_dict['number_of_gates'] = int(self.__fast_counter_gates)
-        settings_dict['is_gated'] = bool(self.fastcounter().is_gated())
+        settings_dict['is_gated'] = bool(netobtain(self.fastcounter().is_gated()))
         return settings_dict
 
     @fast_counter_settings.setter
