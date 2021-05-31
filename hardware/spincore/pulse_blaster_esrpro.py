@@ -773,22 +773,22 @@ class PulseBlasterESRPRO(Base, SwitchInterface, PulserInterface):
         channel_bitmask = self._convert_to_bitmask(active_channels)
 
         # # Check, whether the length fulfills the minimal granularity:
-        old_length = length
+        # old_length = length
 
-        length = np.round(np.round(length/self.GRAN_MIN+0.01) * self.GRAN_MIN, 12)
-        # the +0.01 moves the critical point by this value and avoids ambiguity
-        # at number divided by the sample rate (Note: the +0.01 does not remove
-        # the ambiguity, it is just shifted by this value. It is assume that an
-        # entry of 13.0 is much more likely than 13.01).
+        # length = np.round(np.round(length/self.GRAN_MIN+0.01) * self.GRAN_MIN, 12)
+        # # the +0.01 moves the critical point by this value and avoids ambiguity
+        # # at number divided by the sample rate (Note: the +0.01 does not remove
+        # # the ambiguity, it is just shifted by this value. It is assume that an
+        # # entry of 13.0 is much more likely than 13.01).
 
 
-        residual = old_length - length
-        if not np.isclose(residual, 0.0, atol=1e-12):
-            self.log.warning('The length of the pulse does not fulfill the '
-                             'granularity of {0:.2e}s. The length is rounded '
-                             'to a number, dividable by the granularity! '
-                             '{1:.2e}s were dropped.'
-                             ''.format(self.GRAN_MIN, residual))
+        # residual = old_length - length
+        # if not np.isclose(residual, 0.0, atol=1e-12):
+        #     self.log.warning('The length of the pulse does not fulfill the '
+        #                      'granularity of {0:.2e}s. The length is rounded '
+        #                      'to a number, dividable by the granularity! '
+        #                      '{1:.2e}s were dropped.'
+        #                      ''.format(self.GRAN_MIN, residual))
 
         # an algorithm to utilize the long delay possibility of the pulse
         # blaster.
@@ -2007,3 +2007,37 @@ class PulseBlasterESRPRO(Base, SwitchInterface, PulserInterface):
         @return: bool, True for yes, False for no.
         """
         return False
+    
+    def get_state(self, switch):
+        """ Query state of single switch by name
+
+        @param str switch: name of the switch to query the state for
+        @return str: The current switch state
+        """
+        pass
+
+    def set_state(self, switch, state):
+        """ Query state of single switch by name
+
+        @param str switch: name of the switch to change
+        @param str state: name of the state to set
+        """
+        pass
+    
+    def name(self):
+        """ Name of the hardware as string.
+
+        @return str: The name of the hardware
+        """
+        pass
+
+    def available_states(self):
+        """ Names of the states as a dict of tuples.
+
+        The keys contain the names for each of the switches. The values are tuples of strings
+        representing the ordered names of available states for each switch.
+
+        @return dict: Available states per switch in the form {"switch": ("state1", "state2")}
+        """
+        pass
+
