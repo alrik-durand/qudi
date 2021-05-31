@@ -647,7 +647,7 @@ class Main(GUIBase):
             elif index > 1:
                 btn = self._output_port_buttons[i]
                 if i+2 == index:
-                    self.spectrumlogic().output_port = self.spectrumlogic().spectro_constraints.ports[i+2].type
+                    self.spectrumlogic().output_port = self.spectrumlogic().spectro_constraints.ports[i+len(self._input_ports)].type
                     btn.setChecked(True)
                     btn.setDown(True)
                 else:
@@ -807,6 +807,10 @@ class Main(GUIBase):
             self._counter_plot.setData(x, y)
 
         elif index == 2:
+            if len(np.shape(data))==3:
+                data1 = data.reshape(np.shape(data)[0], np.shape(data)[2])
+            else:
+                data1=data
 
             x = self.spectrumlogic().wavelength_spectrum
             if self._spectrum_dark.shape[-1] == data.shape[-1]:
@@ -817,7 +821,8 @@ class Main(GUIBase):
                 self._spectrum_tab.dark_acquired_msg.setText("No Dark Acquired")
 
             if self.spectrumlogic().acquisition_mode == "MULTI_SCAN":
-                self._spectrum_data = np.array([[x, scan] for scan in y])
+                self._spectrum_data = np.vstack((data1, self.spectrumlogic().wavelength_spectrum))
+                # self._spectrum_data = np.array([[x, scan] for scan in y], dtype=float)
                 self._spectrum_tab.graph.clear()
 
                 if self.spectrumlogic().read_mode == "MULTIPLE_TRACKS":
@@ -883,8 +888,8 @@ class Main(GUIBase):
         filepath = self.savelogic().get_path_for_module(module_name='spectrometer')
 
         if index==0:
-            data = {'data': np.array(self._image_data/self._image_params['exposure_time (s)']).flatten()}
+            data = {'data': np.array(self._image_data/self._image_params['exposure_time (s)'])}
             self.savelogic().save_data(data, filepath=filepath, parameters=self._image_params)
         elif index==1:
-            data = {'data': np.array(self._spectrum_data/self._spectrum_params['exposure_time (s)']).flatten()}
+            data = {'data': np.array(self._spectrum_data[:-1,:]/self._spectrum_params['exposure_time (s)'])}
             self.savelogic().save_data(data, filepath=filepath, parameters=self._spectrum_params)
