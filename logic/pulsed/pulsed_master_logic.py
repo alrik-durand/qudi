@@ -22,6 +22,7 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 
 from core.connector import Connector
 from logic.generic_logic import GenericLogic
+from core.util.network import netobtain
 from qtpy import QtCore
 import numpy as np
 
@@ -945,9 +946,7 @@ class PulsedMasterLogic(GenericLogic):
         self.sigSamplingSettingsChanged.emit(settings_dict)
         return
 
-    @QtCore.Slot(str)
-    @QtCore.Slot(str, dict)
-    @QtCore.Slot(str, dict, bool)
+
     def generate_predefined_sequence(self, generator_method_name, kwarg_dict=None, sample_and_load=False):
         """
 
@@ -956,6 +955,7 @@ class PulsedMasterLogic(GenericLogic):
         @param sample_and_load:
         @return:
         """
+        kwarg_dict = netobtain(kwarg_dict)
         if not isinstance(kwarg_dict, dict):
             kwarg_dict = dict()
         self.status_dict['predefined_generation_busy'] = True
